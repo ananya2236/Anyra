@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Anyra - AI Assistant</title>
+  <link rel="stylesheet" href="/static/output.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Prata&display=swap');</style>
+  <style type="text/tailwindcss">
+    @layer base {
+      body {
+        font-family: "Outfit", sans-serif;
+      }
+      
+      ::-webkit-scrollbar{
+        display: none;
+      }
+    }
+
+    @layer utilities {
+    @keyframes swirl {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.3),
+                    0 0 60px rgba(0, 255, 255, 0.2),
+                    0 0 100px rgba(255, 0, 255, 0.3);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 30px rgba(255, 0, 255, 0.5),
+                    0 0 80px rgba(0, 200, 255, 0.4),
+                    0 0 120px rgba(0, 255, 200, 0.4);
+        transform: scale(1.05);
+      }
+    }
+
+    .swirl-glow {
+      background: radial-gradient(circle at center,
+        rgba(2, 14, 69, 0.5),
+        rgba(38, 59, 136, 0.3),
+        rgba(97, 47, 212, 0.3),
+        rgba(232, 56, 153, 0.3),
+        rgba(77, 47, 129, 0.2)
+      );
+      background-size: 300% 300%;
+      animation:
+        swirl 8s ease-in-out infinite,
+        pulseGlow 3s ease-in-out infinite;
+      border-radius: 9999px;
+    }
+
+    /* 👁️ Blinking animation for both eyes */
+    @keyframes blink {
+      0%, 95%, 100% {
+        transform: scaleY(1);
+      }
+      97% {
+        transform: scaleY(0.1); /* Eye closes */
+      }
+    }
+
+    /* ✨ Eye styling */
+    .eye {
+      position: absolute;
+      width: 15px;
+      height: 32px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(255,255,255,0.5);
+      animation: blink 5s infinite ease-in-out;
+      transform-origin: center;
+    }
+
+    /* 👈 Left eye position */
+    #eye-left {
+      left: 33%;
+      top: 40%;
+    }
+
+    /* 👉 Right eye position */
+    #eye-right {
+      right: 33%;
+      top: 40%;
+    }
+
+
+
+    @keyframes blink {
+      0%, 94%, 100% { scale: 1; }
+      95%, 97% { scale: 1 0.1; }
+    }
+
+    @keyframes typewriter {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+
+    .animate-typewriter {
+      overflow: hidden;
+      white-space: nowrap;
+      display: inline-block;
+      animation: typewriter 1.8s steps(30) forwards;
+    }
+
+    /* From Uiverse.io by Fadhilmagass */ 
+.loader {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+  -ms-flex-pack: center;
+  justify-content: center;
+  -webkit-box-align: center;
+  -ms-flex-align: center;
+  align-items: center;
+  height: 100%;
+}
+
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  -webkit-animation: dot-pulse2 1.5s ease-in-out infinite;
+  animation: dot-pulse2 1.5s ease-in-out infinite;
+}
+
+.dot-1 {
+  background-color: #4285f4;
+  -webkit-animation-delay: 0s;
+  animation-delay: 0s;
+}
+
+.dot-2 {
+  background-color: #34a853;
+  -webkit-animation-delay: 0.3s;
+  animation-delay: 0.3s;
+}
+
+.dot-3 {
+  background-color: #fbbc05;
+  -webkit-animation-delay: 0.6s;
+  animation-delay: 0.6s;
+}
+
+.dot-4 {
+  background-color: #ea4335;
+  -webkit-animation-delay: 0.9s;
+  animation-delay: 0.9s;
+}
+
+.dot-5 {
+  background-color: #4285f4;
+  -webkit-animation-delay: 1.2s;
+  animation-delay: 1.2s;
+}
+
+/* Variasi baru */
+.dot-6 {
+  background-color: #0f9d58;
+  -webkit-animation-delay: 1.5s;
+  animation-delay: 1.5s;
+}
+
+.dot-7 {
+  background-color: #673ab7;
+  -webkit-animation-delay: 1.8s;
+  animation-delay: 1.8s;
+}
+
+.dot-8 {
+  background-color: #ff5722;
+  -webkit-animation-delay: 2.1s;
+  animation-delay: 2.1s;
+}
+
+@keyframes dot-pulse2 {
+  0% {
+    -webkit-transform: scale(0.5);
+    transform: scale(0.5);
+    opacity: 0.5;
+  }
+
+  50% {
+    -webkit-transform: scale(1);
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    -webkit-transform: scale(0.5);
+    transform: scale(0.5);
+    opacity: 0.5;
+  }
+}
+    
+  }
+  </style>
+</head>
+
+<body class="bg-black flex flex-col items-center justify-between min-h-screen pt-16 ">
+
+  <!-- AI Glowing Ball -->
+  <div class="fixed top-0 left-0 w-full flex flex-col items-center transition-opacity duration-700 ease-in-out z-40"></div>
+    <div class="relative mt-12 mb-10 w-56 h-56 transition-all duration-700 ease-in-out mx-auto">
+
+      <!-- Main glowing ball -->
+      <div id="ai-container" class="relative w-full h-full rounded-full swirl-glow shadow-[0_0_60px_rgba(255,255,255,0.2)] z-10 transition-transform duration-300">
+        <div id="eye-left" class="eye" style="left: 33%; top: 40%;"></div>
+        <div id="eye-right" class="eye" style="right: 33%; top: 40%;"></div>
+      </div>
+    </div>
+
+
+    <!-- Animated Text BELOW the glowing ball -->
+    <div class="text-white text-center mb-3 ">
+      <h1 class="text-4xl font-semibold animate-typewriter">Welcome! I'm Anyra!</h1>
+    </div>
+
+    <div class="text-white text-center mb-2">
+      <h1 id="getStartedText" class="text-2xl opacity-0 transition-opacity duration-1000 text-cyan-200">Let's Get Started!</h1>
+    </div>
+
+    <!-- Dialog Box at Bottom -->
+    <div class="w-full mt-9 px-6 pb-4">
+      <div class="flex items-center bg-gray-800 border border-gray-600 rounded-full px-4 py-3 shadow-lg max-w-2xl mx-auto">
+        <input id="message" type="text" placeholder="Type something..." class="bg-transparent outline-none text-white flex-grow placeholder-gray-400" />
+
+        <!-- Send Button -->
+        <button onclick="sendMessage()" class="text-xl ml-3">
+          <svg xmlns="http://www.w3.org/2000/svg"
+               fill="none"
+               viewBox="0 0 24 24"
+               stroke-width="1.5"
+               stroke="currentColor"
+               class="w-8 h-8 text-white hover:text-cyan-400 transition-colors duration-300">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m15 11.25-3-3m0 0-3 3m3-3v7.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+        </button>
+
+        <!-- Mic Button -->
+        <button class="text-xl ml-3">
+          <svg xmlns="http://www.w3.org/2000/svg"
+               fill="none"
+               viewBox="0 0 24 24"
+               stroke-width="1.5"
+               stroke="currentColor"
+               class="w-6 h-6 text-white hover:text-cyan-400 transition-colors duration-300">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+          </svg>
+        </button>
+
+      </div>
+    </div>
+  
+    <!-- 🔥 Ball target for scroll animation -->
+  <div id="ballTarget" class="w-full flex justify-center mt-10 mb-6"></div>
+
+
+  <!-- Echo Bot Section -->
+<section class="w-full h-screen flex items-center justify-center bg-black text-white px-6">
+  <div class="max-w-5xl w-full grid md:grid-cols-2 gap-10 items-center">
+
+    <!-- Left: Echo Bot Text + Description -->
+    <div class="text-left">
+      <h2 class="text-5xl font-bold mb-4">Echo Bot</h2><br><br>
+      <p class="text-gray-300 text-1xl leading-relaxed">
+        Echo Bot is your futuristic voice assistant that listens, speaks, and interacts with you in real time through a sleek, glowing interface! Powered by smart tech and limitless potential, it's here to turn commands into conversations — Let’s Try! 
+      </p>
+    </div>
+
+    <!-- Right: Buttons + Audio -->
+    <div class="flex flex-col items-center justify-center">
+      <div class="flex gap-6 mb-4">
+        <!-- Start Recording -->
+        <button onclick="startRecording()" class="hover:text-cyan-400 text-white font-bold p-2 rounded">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+          </svg>
+          <h1>Start</h1>
+        </button>
+
+        <!-- Stop Recording -->
+        <button onclick="stopRecording()" class="hover:text-cyan-400 text-white font-bold p-2 rounded">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+          </svg>
+          <h1>Stop</h1>
+        </button>
+      </div>
+
+      <!-- Audio Playback (moved outside the button wrapper) -->
+      <!-- Audio Playback (Reduced Width) -->
+      <div class="flex justify-center w-full">
+        <audio id="echoAudio" controls class="w-74 block"></audio>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+
+
+</div>
+
+<!-- From Uiverse.io by Fadhilmagass --> 
+<div class="loader mb-10 mt-70">
+  <div class="dot dot-1"></div>
+  <div class="dot dot-2"></div>
+  <div class="dot dot-3"></div>
+  <div class="dot dot-4"></div>
+  <div class="dot dot-5"></div>
+  
+  <div class="dot dot-6"></div>
+  <div class="dot dot-7"></div>
+  <div class="dot dot-8"></div>
+</div>
+
+
+
+  <audio id="audioPlayer" controls style="display: none;"></audio>
+
+  <script src="/static/script.js"></script>
+</body>
