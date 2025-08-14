@@ -226,11 +226,21 @@ async function sendToLLM(blob) {
             // Handle voice playback
             if (result.murf_audio_url) {
                 echoAudio.src = result.murf_audio_url;
+
+                // Add speaking effect
+                document.getElementById('ai-container').classList.add('speaking');
+
                 await echoAudio.play();
                 document.getElementById('uploadStatus').textContent = "Audio played successfully.";
-                echoAudio.onended = () => setTimeout(() => startRecording(false), 300);
-            } 
-            else if (result.fallback_text) {
+
+                // Remove speaking effect when audio ends
+                echoAudio.onended = () => {
+                    document.getElementById('ai-container').classList.remove('speaking');
+                    setTimeout(() => startRecording(false), 300);
+                };
+
+            } else if (result.fallback_text) {
+                // Fallback to browser voice
                 playFallbackVoice(result.fallback_text);
                 document.getElementById('uploadStatus').textContent = "Fallback voice played.";
             }

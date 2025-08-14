@@ -107,6 +107,25 @@
       display: inline-block;
       animation: typewriter 1.8s steps(30) forwards;
     }
+    @keyframes speakingPulse {
+      0%, 100% {
+        transform: scale(1) rotateX(0deg) rotateY(0deg);
+        box-shadow: 0 0 25px rgba(0, 255, 255, 0.7),
+                    0 0 50px rgba(255, 0, 255, 0.6),
+                    0 0 100px rgba(0, 255, 200, 0.5);
+      }
+      50% {
+        transform: scale(1.15) rotateX(10deg) rotateY(10deg);
+        box-shadow: 0 0 40px rgba(255, 0, 255, 0.9),
+                    0 0 80px rgba(0, 255, 255, 0.8),
+                    0 0 140px rgba(255, 255, 0, 0.7);
+      }
+    }
+
+.speaking {
+  animation: speakingPulse 1s ease-in-out infinite;
+}
+
     
   }
   </style>
@@ -114,61 +133,98 @@
 
 <body class="bg-black min-h-screen flex text-white">
 
-  <!-- LEFT FRAME -->
-  <div class="w-1/2 flex flex-col items-center justify-start pt-6 ">
-    
-    <!-- Glowing Ball -->
-    <div class="relative mt-6 mb-6 w-56 h-56">
-      <div id="ai-container" class="relative w-full h-full rounded-full swirl-glow shadow-lg">
-        <div id="eye-left" class="eye"></div>
-        <div id="eye-right" class="eye"></div>
-      </div>
-    </div>
+  <!-- Main Container -->
+  <div id="mainContainer" class="relative flex flex-col items-center justify-center w-full">
 
-    <!-- Buttons -->
-    <div class="flex gap-6 mb-4">
-      <button id="recordBtn" onclick="toggleRecording()" 
-              class="hover:text-cyan-400 text-white font-bold p-2 rounded border border-cyan-500">
-        Start
-      </button>
-    </div>
+    <!-- Show/Hide Chat Button (Top Right) -->
+    <button id="chatToggleBtn" onclick="toggleChat()" 
+            class="absolute top-6 right-6 hover:text-pink-400 text-white font-bold p-2 rounded border border-pink-500 z-10">
+      Show Chat
+    </button>
 
-
-    <!-- Upload Status -->
-    <p id="uploadStatus" class="text-cyan-300 mt-4 text-center text-sm">Upload status will appear here</p>
-
-    <!-- Audio -->
-    <audio id="echoAudio" controls class="mt-4"></audio>
-    <audio id="audioPlayer" controls style="display: none;"></audio>
-  </div>
-
-  <!-- RIGHT FRAME -->
-  <div class="w-1/2 pt-[100px] pb-[100px] overflow-y-auto">
-    <div id="chatContainer" 
-     class="p-20 space-y-4 h-[400px] w-[550px] overflow-y-auto
-            bg-gradient-to-br from-gray-700 to-white-600 
-            border-t-2 border-l-2 border-gray-100 
-            border-b-2 border-r-2 border-gray-500 
-            rounded-lg 
-            shadow-[8px_8px_20px_rgba(0,0,0,0.6),-8px_-8px_20px_rgba(255,255,255,0.1)]">
-
-
-      <!-- AI message -->
-      <div class="flex">
-        <div class="text-white rounded-lg p-3 max-w-xs border border-white">
-          Hi! I'm Anyra
+    <!-- LEFT FRAME -->
+    <div id="leftFrame" class="flex flex-col items-center justify-start pt-[10px] w-full transition-all duration-500">
+      
+      <!-- Glowing Ball -->
+      <div class="relative mt-6 mb-10 w-56 h-56">
+        <div id="ai-container" class="relative w-full h-full rounded-full swirl-glow shadow-lg">
+          <div id="eye-left" class="eye"></div>
+          <div id="eye-right" class="eye"></div>
         </div>
       </div>
 
-      <!-- User message -->
-      <div class="flex justify-end">
-        <div class="bg-cyan-900 text-white rounded-lg p-3 max-w-xs border border-white">
-          Hi
+      <!-- Buttons -->
+      <div class="flex gap-6 mb-4">
+        <button id="recordBtn" onclick="toggleRecording()" 
+                class="hover:text-cyan-400 text-white font-bold p-2 rounded border border-cyan-500">
+          Start
+        </button>
+      </div>
+
+      <!-- Upload Status -->
+      <p id="uploadStatus" class="text-cyan-300 mt-4 text-center text-sm">Upload status will appear here</p>
+
+      <!-- Audio -->
+      <audio id="echoAudio" controls class="mt-4"></audio>
+      <audio id="audioPlayer" controls style="display: none;"></audio>
+    </div>
+
+    <!-- RIGHT FRAME (Hidden Initially) -->
+    <div id="rightFrame" class="pt-[100px] pb-[100px] overflow-y-auto hidden">
+      <div id="chatContainer" 
+        class="p-20 space-y-4 h-[400px] w-[550px] overflow-y-auto
+              bg-gradient-to-br from-gray-700 to-white-600 
+              border-t-2 border-l-2 border-gray-100 
+              border-b-2 border-r-2 border-gray-500 
+              rounded-lg 
+              shadow-[8px_8px_20px_rgba(0,0,0,0.6),-8px_-8px_20px_rgba(255,255,255,0.1)]">
+
+        <!-- AI message -->
+        <div class="flex">
+          <div class="text-white rounded-lg p-3 max-w-xs border border-white">
+            Hi! I'm Anyra
+          </div>
+        </div>
+
+        <!-- User message -->
+        <div class="flex justify-end">
+          <div class="bg-cyan-900 text-white rounded-lg p-3 max-w-xs border border-white">
+            Hi
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
+  </div>
 
   <script src="/static/script.js"></script>
+  <script>
+    function toggleChat() {
+      const main = document.getElementById("mainContainer");
+      const rightFrame = document.getElementById("rightFrame");
+      const leftFrame = document.getElementById("leftFrame");
+      const btn = document.getElementById("chatToggleBtn");
+
+    if (rightFrame.classList.contains("hidden")) {
+        // Switch to side-by-side layout
+        main.classList.remove("flex-col", "items-center", "justify-center");
+        main.classList.add("flex-row", "items-center", "justify-center"); // <-- added items-center
+        leftFrame.classList.add("w-1/2");
+        leftFrame.classList.remove("w-full");
+        rightFrame.classList.remove("hidden");
+        rightFrame.classList.add("w-1/2");
+        btn.textContent = "Hide Chat";
+    } else {
+        // Switch back to centered layout
+        main.classList.remove("flex-row", "items-center", "justify-center");
+        main.classList.add("flex-col", "items-center", "justify-center");
+        leftFrame.classList.remove("w-1/2");
+        leftFrame.classList.add("w-full");
+        rightFrame.classList.add("hidden");
+        btn.textContent = "Show Chat";
+    }
+
+    }
+  </script>
+
 </body>
