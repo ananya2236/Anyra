@@ -115,7 +115,7 @@
 <body class="bg-black min-h-screen flex text-white">
 
   <!-- LEFT FRAME -->
-  <div class="w-1/2 flex flex-col items-center justify-start pt-6 border-r border-gray-700">
+  <div class="w-1/2 flex flex-col items-center justify-start pt-6 ">
     
     <!-- Glowing Ball -->
     <div class="relative mt-6 mb-6 w-56 h-56">
@@ -127,9 +127,12 @@
 
     <!-- Buttons -->
     <div class="flex gap-6 mb-4">
-      <button onclick="startRecording()" class="hover:text-cyan-400 text-white font-bold p-2 rounded border border-cyan-500">Start</button>
-      <button onclick="stopRecording()" class="hover:text-cyan-400 text-white font-bold p-2 rounded border border-pink-500">Stop</button>
+      <button id="recordBtn" onclick="toggleRecording()" 
+              class="hover:text-cyan-400 text-white font-bold p-2 rounded border border-cyan-500">
+        Start
+      </button>
     </div>
+
 
     <!-- Upload Status -->
     <p id="uploadStatus" class="text-cyan-300 mt-4 text-center text-sm">Upload status will appear here</p>
@@ -140,18 +143,32 @@
   </div>
 
   <!-- RIGHT FRAME -->
-  <div class="w-1/2 p-6 overflow-y-auto">
-    <div id="chatContainer" class="bg-gray-900 border-2 border-pink-500 rounded-lg p-4 space-y-4">
-      <!-- Example AI message -->
+  <div class="w-1/2 pt-[100px] pb-[100px] overflow-y-auto">
+    <div id="chatContainer" 
+     class="p-20 space-y-4 h-[400px] w-[550px] overflow-y-auto
+            bg-gradient-to-br from-gray-700 to-white-600 
+            border-t-2 border-l-2 border-gray-100 
+            border-b-2 border-r-2 border-gray-500 
+            rounded-lg 
+            shadow-[8px_8px_20px_rgba(0,0,0,0.6),-8px_-8px_20px_rgba(255,255,255,0.1)]">
+
+
+      <!-- AI message -->
       <div class="flex">
-        <div class="bg-cyan-600 text-white rounded-lg p-3 max-w-xs">Hello, I am Anyra!</div>
+        <div class="text-white rounded-lg p-3 max-w-xs border border-white">
+          Hi! I'm Anyra
+        </div>
       </div>
-      <!-- Example User message -->
+
+      <!-- User message -->
       <div class="flex justify-end">
-        <div class="bg-pink-600 text-white rounded-lg p-3 max-w-xs">Hi Anyra!</div>
+        <div class="bg-cyan-900 text-white rounded-lg p-3 max-w-xs border border-white">
+          Hi
+        </div>
       </div>
     </div>
   </div>
+
 
   <script src="/static/script.js"></script>
 </body>

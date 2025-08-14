@@ -84,6 +84,24 @@ let manualRecording = false; // differentiate manual vs auto
 const AUTO_RECORD_DURATION_MS = 5000; // auto-record length (tweakable)
 const echoAudio = document.getElementById("echoAudio");
 
+
+function toggleRecording() {
+    const btn = document.getElementById("recordBtn");
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        stopRecording();
+        btn.textContent = "Start";
+        btn.classList.remove("border-pink-500");
+        btn.classList.add("border-cyan-500");
+    } else {
+        startRecording(true);
+        btn.textContent = "Stop";
+        btn.classList.remove("border-cyan-500");
+        btn.classList.add("border-pink-500");
+    }
+}
+
+
+
 async function startRecording(manual = true) {
   manualRecording = manual;
   try {
@@ -172,14 +190,14 @@ function appendMessage(sender, text) {
 
     if (sender === 'user') {
         messageDiv.className = "flex justify-end";
-        messageDiv.innerHTML = `<div class="bg-pink-600 text-white rounded-lg p-3 max-w-xs">${text}</div>`;
+        messageDiv.innerHTML = `<div class="bg-cyan-900 text-white rounded-lg p-5 max-w-xs border border-white">${text}</div>`;
     } else {
         messageDiv.className = "flex";
-        messageDiv.innerHTML = `<div class="bg-cyan-600 text-white rounded-lg p-3 max-w-xs">${text}</div>`;
+        messageDiv.innerHTML = `<div class="text-white rounded-lg p-3 max-w-xs border border-white">${text}</div>`;
     }
 
     chatContainer.appendChild(messageDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight; // auto-scroll
+    chatContainer.scrollTop = chatContainer.scrollHeight; 
 }
 
 async function sendToLLM(blob) {
