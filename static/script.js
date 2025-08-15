@@ -84,43 +84,52 @@ let manualRecording = false; // differentiate manual vs auto
 const AUTO_RECORD_DURATION_MS = 5000; // auto-record length (tweakable)
 const echoAudio = document.getElementById("echoAudio");
 
-
 function toggleRecording() {
-    const btn = document.getElementById("recordBtn");
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        stopRecording();
-        btn.textContent = "Start";
-        btn.classList.remove("border-pink-500");
-        btn.classList.add("border-cyan-500");
-    } else {
-        startRecording(true);
-        btn.textContent = "Stop";
-        btn.classList.remove("border-cyan-500");
-        btn.classList.add("border-pink-500");
-    }
+  const btn = document.getElementById("recordBtn");
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    stopRecording();
+    btn.textContent = "Start";
+    btn.classList.remove("border-pink-500");
+    btn.classList.add("border-cyan-500");
+  } else {
+    startRecording(true);
+    btn.textContent = "Stop";
+    btn.classList.remove("border-cyan-500");
+    btn.classList.add("border-pink-500");
+  }
 }
-
-
 
 async function startRecording(manual = true) {
   manualRecording = manual;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream);
+
+    // ✅ Explicit format for better compatibility
+    mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
     recordedChunks = [];
 
     mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) recordedChunks.push(event.data);
+      if (event.data && event.data.size > 0) {
+        recordedChunks.push(event.data);
+      }
     };
 
     mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+      console.log("Chunks recorded:", recordedChunks.length);
+      const blob = new Blob(recordedChunks, { type: "audio/webm" });
+      console.log("Blob size:", blob.size);
+
+      if (blob.size === 0) {
+        alert("⚠️ No audio recorded. Please try again.");
+        return;
+      }
+
       // Send to LLM pipeline (always)
       sendToLLM(blob);
 
-      // If manual recording, ask to save/upload; auto recordings skip the prompt/upload
+      // Manual vs Auto handling
       if (manualRecording) {
-        const status = document.getElementById('uploadStatus');
+        const status = document.getElementById("uploadStatus");
         status.textContent = "Processing... Please wait.";
 
         let defaultName = `recording_${Date.now()}`;
@@ -129,32 +138,31 @@ async function startRecording(manual = true) {
         if (!newName.toLowerCase().endsWith(".webm")) newName += ".webm";
 
         const formData = new FormData();
-        formData.append('file', blob, newName);
+        formData.append("file", blob, newName);
 
         fetch("http://127.0.0.1:8000/upload-audio", { method: "POST", body: formData })
           .then(res => res.json())
           .then(data => {
             console.log(`File "${data.filename}" uploaded successfully! Size: ${data.size} bytes`);
-            document.getElementById('uploadStatus').textContent = `Uploaded: ${data.filename}`;
+            document.getElementById("uploadStatus").textContent = `Uploaded: ${data.filename}`;
           })
           .catch(err => {
             console.error("❌ Upload failed.", err);
-            document.getElementById('uploadStatus').textContent = `Upload failed`;
+            document.getElementById("uploadStatus").textContent = `Upload failed`;
           });
       } else {
-        // For auto recordings, optionally update UI but do not prompt
-        document.getElementById('uploadStatus').textContent = "Auto message sent.";
+        document.getElementById("uploadStatus").textContent = "Auto message sent.";
       }
     };
 
-    mediaRecorder.start();
+    // ✅ Timeslice to ensure data is captured regularly
+    mediaRecorder.start(1000);
     console.log("🎙️ Recording started...", manual ? "(manual)" : "(auto)");
 
-    // For auto recordings, stop automatically after a short time
     if (!manual) {
       setTimeout(() => {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          stopRecording();
         }
       }, AUTO_RECORD_DURATION_MS);
     }
@@ -165,92 +173,81 @@ async function startRecording(manual = true) {
 }
 
 function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.requestData(); // ✅ Force last chunk
     mediaRecorder.stop();
     console.log("⏹️ Recording stopped.");
   }
 }
 
-
 function playFallbackVoice(text) {
-    if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-IN'; // You can change the language if needed
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
-    } else {
-        alert(text);
-    }
+  if ("speechSynthesis" in window) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-IN";
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  } else {
+    alert(text);
+  }
 }
 
-
 function appendMessage(sender, text) {
-    const chatContainer = document.getElementById('chatContainer');
-    const messageDiv = document.createElement('div');
+  const chatContainer = document.getElementById("chatContainer");
+  const messageDiv = document.createElement("div");
 
-    if (sender === 'user') {
-        messageDiv.className = "flex justify-end";
-        messageDiv.innerHTML = `<div class="bg-cyan-900 text-white rounded-lg p-5 max-w-xs border border-white">${text}</div>`;
-    } else {
-        messageDiv.className = "flex";
-        messageDiv.innerHTML = `<div class="text-white rounded-lg p-3 max-w-xs border border-white">${text}</div>`;
-    }
+  if (sender === "user") {
+    messageDiv.className = "flex justify-end";
+    messageDiv.innerHTML = `<div class="bg-cyan-900 text-white rounded-lg p-5 max-w-xs border border-white">${text}</div>`;
+  } else {
+    messageDiv.className = "flex";
+    messageDiv.innerHTML = `<div class="text-white rounded-lg p-3 max-w-xs border border-white">${text}</div>`;
+  }
 
-    chatContainer.appendChild(messageDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight; 
+  chatContainer.appendChild(messageDiv);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
 async function sendToLLM(blob) {
-    const formData = new FormData();
-    formData.append("file", blob, "recording.webm");
+  const formData = new FormData();
+  formData.append("file", blob, "recording.webm");
 
-    try {
-        const response = await fetch(`http://127.0.0.1:8000/agent/chat/${sessionId}`, {
-            method: "POST",
-            body: formData
-        });
+  try {
+    const response = await fetch(`http://127.0.0.1:8000/agent/chat/${sessionId}`, {
+      method: "POST",
+      body: formData
+    });
 
-        const result = await response.json();
+    const result = await response.json();
 
-        if (response.ok) {
-            // Show user's spoken text on the right
-            if (result.transcription) {
-                appendMessage('user', result.transcription);
-            }
+    if (response.ok) {
+      if (result.transcription) {
+        appendMessage("user", result.transcription);
+      }
 
-            // Show AI's reply on the left
-            if (result.llm_text) {
-                appendMessage('ai', result.llm_text);
-            }
+      if (result.llm_text) {
+        appendMessage("ai", result.llm_text);
+      }
 
-            // Handle voice playback
-            if (result.murf_audio_url) {
-                echoAudio.src = result.murf_audio_url;
+      if (result.murf_audio_url) {
+        echoAudio.src = result.murf_audio_url;
+        document.getElementById("ai-container").classList.add("speaking");
 
-                // Add speaking effect
-                document.getElementById('ai-container').classList.add('speaking');
+        await echoAudio.play();
+        document.getElementById("uploadStatus").textContent = "Audio played successfully.";
 
-                await echoAudio.play();
-                document.getElementById('uploadStatus').textContent = "Audio played successfully.";
-
-                // Remove speaking effect when audio ends
-                echoAudio.onended = () => {
-                    document.getElementById('ai-container').classList.remove('speaking');
-                    setTimeout(() => startRecording(false), 300);
-                };
-
-            } else if (result.fallback_text) {
-                // Fallback to browser voice
-                playFallbackVoice(result.fallback_text);
-                document.getElementById('uploadStatus').textContent = "Fallback voice played.";
-            }
-
-        } else {
-            const errorMsg = result.detail || "Error occurred.";
-            appendMessage('ai', errorMsg);
-        }
-
-    } catch (err) {
-        appendMessage('ai', "Connection error. Please try again.");
+        echoAudio.onended = () => {
+          document.getElementById("ai-container").classList.remove("speaking");
+          setTimeout(() => startRecording(false), 300);
+        };
+      } else if (result.fallback_text) {
+        playFallbackVoice(result.fallback_text);
+        document.getElementById("uploadStatus").textContent = "Fallback voice played.";
+      }
+    } else {
+      const errorMsg = result.detail || "Error occurred.";
+      appendMessage("ai", errorMsg);
     }
+  } catch (err) {
+    appendMessage("ai", "Connection error. Please try again.");
+  }
 }
