@@ -3,6 +3,10 @@
 // ----------------------------
 let urlParams = new URLSearchParams(window.location.search);
 let sessionId = urlParams.get("session_id");
+let isRecording = false;
+let audioWS = null;
+
+
 if (!sessionId) {
   sessionId = crypto.randomUUID();
   urlParams.set("session_id", sessionId);
@@ -86,89 +90,88 @@ const echoAudio = document.getElementById("echoAudio");
 
 
 function toggleRecording() {
-    const btn = document.getElementById("recordBtn");
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        stopRecording();
-        btn.textContent = "Start";
-        btn.classList.remove("border-pink-500");
-        btn.classList.add("border-cyan-500");
-    } else {
-        startRecording(true);
-        btn.textContent = "Stop";
-        btn.classList.remove("border-cyan-500");
-        btn.classList.add("border-pink-500");
-    }
+  if (!isRecording) {
+    // start only if not recording
+    isRecording = true;
+    startRecording();
+    document.getElementById('recordBtn').textContent = "⏹️ Stop";
+  } else {
+    // stop only if currently recording
+    isRecording = false;
+    stopRecording();
+    document.getElementById('recordBtn').textContent = "🎙️ Start";
+  }
 }
 
 
 
-async function startRecording(manual = true) {
-  manualRecording = manual;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream);
-    recordedChunks = [];
 
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) recordedChunks.push(event.data);
+async function startRecording(manual = true) {
+  manualRecording = manual; // keep your flag, though we won't use upload/LLM here
+
+  try {
+    // 1) Open WebSocket to the new audio endpoint
+    audioWS = new WebSocket(`ws://127.0.0.1:8000/ws-audio?session_id=${sessionId}`);
+    audioWS.binaryType = "arraybuffer";
+
+    audioWS.onopen = async () => {
+      console.log("[WS] connected for audio streaming");
+
+      // 2) Get mic & start MediaRecorder
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // NOTE: default is usually audio/webm; keep container/extension consistent on server
+      mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+
+      mediaRecorder.ondataavailable = async (event) => {
+        if (event.data && event.data.size > 0 && audioWS && audioWS.readyState === WebSocket.OPEN) {
+          const buf = await event.data.arrayBuffer();
+          audioWS.send(buf); // 3) send binary chunk to server
+        }
+      };
+
+      // timeslice (ms) → emit chunk every 250ms
+      mediaRecorder.start(250);
+      document.getElementById('uploadStatus').textContent = "🔴 Streaming…";
+      console.log("🎙️ Streaming started...");
     };
 
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-      // Send to LLM pipeline (always)
-      sendToLLM(blob);
-
-      // If manual recording, ask to save/upload; auto recordings skip the prompt/upload
-      if (manualRecording) {
-        const status = document.getElementById('uploadStatus');
-        status.textContent = "Processing... Please wait.";
-
-        let defaultName = `recording_${Date.now()}`;
-        let newName = prompt("✅ Audio recorded! Name the file?", defaultName);
-        if (!newName) newName = defaultName;
-        if (!newName.toLowerCase().endsWith(".webm")) newName += ".webm";
-
-        const formData = new FormData();
-        formData.append('file', blob, newName);
-
-        fetch("http://127.0.0.1:8000/upload-audio", { method: "POST", body: formData })
-          .then(res => res.json())
-          .then(data => {
-            console.log(`File "${data.filename}" uploaded successfully! Size: ${data.size} bytes`);
-            document.getElementById('uploadStatus').textContent = `Uploaded: ${data.filename}`;
-          })
-          .catch(err => {
-            console.error("❌ Upload failed.", err);
-            document.getElementById('uploadStatus').textContent = `Upload failed`;
-          });
-      } else {
-        // For auto recordings, optionally update UI but do not prompt
-        document.getElementById('uploadStatus').textContent = "Auto message sent.";
+    audioWS.onmessage = (evt) => {
+      // Server replies "SAVED:/streams/..." on DONE
+      if (typeof evt.data === "string" && evt.data.startsWith("SAVED:")) {
+        const path = evt.data.substring("SAVED:".length);
+        document.getElementById('uploadStatus').textContent = `✅ Saved: ${path}`;
+        console.log("Saved file at:", path);
       }
     };
 
-    mediaRecorder.start();
-    console.log("🎙️ Recording started...", manual ? "(manual)" : "(auto)");
+    audioWS.onclose = () => {
+      console.log("[WS] closed");
+    };
 
-    // For auto recordings, stop automatically after a short time
-    if (!manual) {
-      setTimeout(() => {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-        }
-      }, AUTO_RECORD_DURATION_MS);
-    }
+    audioWS.onerror = (e) => {
+      console.error("[WS] error", e);
+      document.getElementById('uploadStatus').textContent = "WebSocket error";
+    };
+
   } catch (err) {
     console.error("Microphone access denied or error:", err);
     alert("Microphone access is required.");
   }
 }
 
+
 function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
     mediaRecorder.stop();
     console.log("⏹️ Recording stopped.");
   }
+  // tell server to finalize file
+  if (audioWS && audioWS.readyState === WebSocket.OPEN) {
+    audioWS.send("DONE");
+    audioWS.close();
+  }
+  document.getElementById('uploadStatus').textContent = "⏹️ Stopped (finalizing…)";
 }
 
 

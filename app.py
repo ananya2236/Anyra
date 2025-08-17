@@ -7,12 +7,15 @@ from pydantic import BaseModel
 import google.generativeai as genai
 from tempfile import NamedTemporaryFile
 from dotenv import load_dotenv
+from starlette.websockets import WebSocketDisconnect
 from fastapi import UploadFile, File, FastAPI
 import google.generativeai as genai
 from pydantic import BaseModel
 from pathlib import Path
+from fastapi import WebSocket, WebSocketDisconnect
 import assemblyai as aai
 import requests
+import time
 import os
 
 
@@ -429,5 +432,66 @@ async def agent_chat(session_id: str, file: UploadFile = File(...)):
             "fallback": True,
             "fallback_text": "I'm having trouble connecting right now."
         })
+    
+
+
+
+@app.websocket("/ws-audio")
+async def ws_audio(websocket: WebSocket):
+    
+    await websocket.accept()
+
+    
+    session_id = websocket.query_params.get("session_id", "anon")
+    ts = int(time.time())
+    file_path = STREAMS_DIR / f"{session_id}_{ts}.webm"
+
+    print(f"[WS-AUDIO] Connected. Writing to {file_path}")
+
+    
+    with open(file_path, "wb") as f:
+        try:
+            while True:
+                message = await websocket.receive()
+                # Binary audio chunk
+                if message["type"] == "websocket.receive":
+                    if message.get("bytes"):
+                        f.write(message["bytes"])
+                    else:
+                        # Optional control text
+                        if message.get("text") == "DONE":
+                            await websocket.send_text(f"SAVED:{file_path.as_posix()}")
+                            break
+                elif message["type"] == "websocket.disconnect":
+                    break
+        except WebSocketDisconnect:
+            pass
+        finally:
+            print(f"[WS-AUDIO] Saved to {file_path.resolve()}")
+
+
+# ---  WebSocket Echo ---
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    # Accept the WebSocket handshake
+    await websocket.accept()
+    try:
+        while True:
+            # Receive a text message from client
+            data = await websocket.receive_text()
+            print(f"[WS] Received: {data}")
+            # Echo it back
+            await websocket.send_text(f"Echo: {data}")
+    except WebSocketDisconnect:
+        print("[WS] Client disconnected")
+
+
+
+# below your UPLOAD_DIR logic
+STREAMS_DIR = Path("streams")
+STREAMS_DIR.mkdir(exist_ok=True)
+
+# optionally serve saved files in browser as well
+app.mount("/streams", StaticFiles(directory="streams"), name="streams")
 
 
