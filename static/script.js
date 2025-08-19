@@ -137,20 +137,24 @@ async function startRecording() {
   ws.onmessage = (event) => {
   try {
     const data = JSON.parse(event.data);
+    if (data.type !== "turn") return;
 
-    if (data.type === "turn") {
-      if (!data.eot) {
-        // update interim bubble
-        appendMessage('user', data.text || "", true);
-      } else {
-        // finalize
-        appendMessage('user', data.text || "", false);
-      }
+    if (!data.eot) {
+      // live interim
+      appendMessage('user', data.text || "", true);
+      return;
     }
+
+    // At end-of-turn, ignore the early unformatted final.
+    if (!data.formatted) return;
+
+    // Final, punctuated text -> upgrade/create a single bubble.
+    appendMessage('user', data.text || "", false);
   } catch (e) {
     console.error("Non-JSON WS msg:", event.data);
   }
 };
+
 
 
 }
@@ -206,36 +210,48 @@ function appendMessage(sender, text, interim = false) {
   if (interim) {
     let lastBubble = chatContainer.querySelector('.message.interim');
     if (!lastBubble) {
+      // create interim bubble
       lastBubble = document.createElement('div');
       lastBubble.className = `message interim flex justify-end`;
       lastBubble.innerHTML = `
-        <div class="bg-cyan-900/70 italic text-white rounded-2xl rounded-tr-none px-4 py-2 max-w-xs border border-cyan-400 text-sm">
+        <div class="bg-cyan-600/70 italic text-white rounded-2xl rounded-br-none px-4 py-2 max-w-xs border border-cyan-400 text-sm mb-1">
           ${text}
         </div>`;
       chatContainer.appendChild(lastBubble);
     } else {
+      // update text of interim bubble
       lastBubble.querySelector("div").textContent = text;
     }
     chatContainer.scrollTop = chatContainer.scrollHeight;
     return;
   }
 
-  // Finalized bubble
-  const messageDiv = document.createElement('div');
-  messageDiv.className = "message flex justify-end";
-  messageDiv.innerHTML = `
-    <div class="bg-cyan-600 text-white rounded-2xl px-4 py-2 max-w-xs rounded-tr-none border border-cyan-700 shadow text-sm">
-      ${text}
-      <div class="text-[10px] text-gray-300 mt-1">${new Date().toLocaleTimeString()}</div>
-    </div>`;
-  chatContainer.appendChild(messageDiv);
-
-  // Remove interim bubble if present
-  const interimBubble = chatContainer.querySelector('.message.interim');
-  if (interimBubble) interimBubble.remove();
+  // ✅ Finalize interim instead of creating a new one
+  let interimBubble = chatContainer.querySelector('.message.interim');
+  if (interimBubble) {
+    interimBubble.classList.remove("interim");
+    const bubble = interimBubble.querySelector("div");
+    bubble.classList.remove("italic", "bg-cyan-600/70", "border", "border-cyan-400");
+    bubble.classList.add("bg-cyan-600", "shadow");
+    bubble.innerHTML = `
+      <span class="font-medium">${text}</span>
+      <div class="text-xs text-gray-200 mt-1 text-right">${new Date().toLocaleTimeString()}</div>
+    `;
+  } else {
+    // fallback: if no interim, create a final bubble
+    const messageDiv = document.createElement('div');
+    messageDiv.className = "message flex justify-end";
+    messageDiv.innerHTML = `
+      <div class="bg-cyan-600 text-white rounded-2xl rounded-br-none px-4 py-2 max-w-xs shadow text-sm mb-1">
+        <span class="font-medium">${text}</span>
+        <div class="text-xs text-gray-200 mt-1 text-right">${new Date().toLocaleTimeString()}</div>
+      </div>`;
+    chatContainer.appendChild(messageDiv);
+  }
 
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
+
 
 
 
@@ -308,16 +324,16 @@ async function startSTT() {
   stt.started = true;
 
   // Connect WebSocket to our FastAPI endpoint
-  stt.ws = new WebSocket(`ws://${location.hostname}:8000/ws-stt`);
-  stt.ws.onmessage = (evt) => {
-    try {
-      const data = JSON.parse(evt.data);
-      if (data?.type === "transcript") {
-        const el = document.getElementById("live-transcript");
-        if (el) el.textContent += (data.text || "") + (data.eot ? "\n" : " ");
-      }
-    } catch (_) {}
-  };
+  // stt.ws = new WebSocket(`ws://${location.hostname}:8000/ws-stt`);
+  // stt.ws.onmessage = (evt) => {
+  //   try {
+  //     const data = JSON.parse(evt.data);
+  //     if (data?.type === "transcript") {
+  //       const el = document.getElementById("live-transcript");
+  //       if (el) el.textContent += (data.text || "") + (data.eot ? "\n" : " ");
+  //     }
+  //   } catch (_) {}
+  // };
 
   // 16 kHz audio context
   stt.ctx = new (window.AudioContext || window.webkitAudioContext)({
