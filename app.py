@@ -17,6 +17,12 @@ import assemblyai as aai
 import requests
 import time
 import os
+import os, asyncio, threading, queue
+import assemblyai as aai
+from assemblyai.streaming.v3 import (
+    StreamingClient, StreamingClientOptions, StreamingEvents,
+    StreamingParameters, BeginEvent, TerminationEvent, TurnEvent, StreamingError
+)
 
 
 # Load API key from .env file
@@ -470,20 +476,93 @@ async def ws_audio(websocket: WebSocket):
             print(f"[WS-AUDIO] Saved to {file_path.resolve()}")
 
 
-# ---  WebSocket Echo ---
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    # Accept the WebSocket handshake
+
+# Load AssemblyAI API key
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
+if not ASSEMBLYAI_API_KEY:
+    from dotenv import load_dotenv
+    load_dotenv()
+    ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
+
+# --- REPLACE the /ws endpoint with /ws-stt ---
+@app.websocket("/ws-stt")
+async def ws_stt(websocket: WebSocket):
     await websocket.accept()
+
+    # Queue to bridge WS bytes -> AssemblyAI stream
+    q: "queue.Queue[bytes|None]" = queue.Queue()
+    loop = asyncio.get_event_loop()
+
+    # Handlers for AssemblyAI events
+    def on_begin(self: StreamingClient, event: BeginEvent):
+        print(f"[AAI] Session started: {event.id}")
+
+    def on_turn(self: StreamingClient, event: TurnEvent):
+        print(f"[AAI] {event.transcript} (eot={event.end_of_turn})")
+        # Optionally send to frontend
+        asyncio.run_coroutine_threadsafe(
+            websocket.send_json({
+                "type": "transcript",
+                "text": event.transcript,
+                "eot": event.end_of_turn,
+                "formatted": event.turn_is_formatted,
+            }),
+            loop
+        )
+
+    def on_terminated(self: StreamingClient, event: TerminationEvent):
+        print(f"[AAI] Terminated. {event.audio_duration_seconds}s audio processed")
+
+    def on_error(self: StreamingClient, error: StreamingError):
+        print(f"[AAI] Error: {error}")
+
+    # Create streaming client
+    client = StreamingClient(StreamingClientOptions(
+        api_key=ASSEMBLYAI_API_KEY,
+        api_host="streaming.assemblyai.com",
+    ))
+    client.on(StreamingEvents.Begin, on_begin)
+    client.on(StreamingEvents.Turn, on_turn)
+    client.on(StreamingEvents.Termination, on_terminated)
+    client.on(StreamingEvents.Error, on_error)
+
+    # Connect with 16kHz PCM16 parameters
+    client.connect(StreamingParameters(
+        sample_rate=16000,
+        encoding="pcm_s16le",
+        format_turns=True
+    ))
+
+    # Bytes iterator for AssemblyAI
+    def bytes_iter():
+        while True:
+            chunk = q.get()
+            if chunk is None:
+                break
+            yield chunk
+
+    # Start streaming in background thread
+    t = threading.Thread(target=lambda: client.stream(bytes_iter()), daemon=True)
+    t.start()
+
     try:
         while True:
-            # Receive a text message from client
-            data = await websocket.receive_text()
-            print(f"[WS] Received: {data}")
-            # Echo it back
-            await websocket.send_text(f"Echo: {data}")
-    except WebSocketDisconnect:
-        print("[WS] Client disconnected")
+            message = await websocket.receive()
+            if message["type"] == "websocket.receive":
+                if message.get("bytes"):
+                    q.put(message["bytes"])   # audio chunk
+                elif message.get("text") == "DONE":
+                    break
+            elif message["type"] == "websocket.disconnect":
+                break
+    finally:
+        q.put(None)
+        try:
+            client.disconnect(terminate=True)
+        except Exception as e:
+            print("[AAI] disconnect error:", e)
+        print("[WS-STT] closed")
+
 
 
 

@@ -4,7 +4,6 @@
 let urlParams = new URLSearchParams(window.location.search);
 let sessionId = urlParams.get("session_id");
 let isRecording = false;
-let audioWS = null;
 
 
 if (!sessionId) {
@@ -89,90 +88,96 @@ const AUTO_RECORD_DURATION_MS = 5000; // auto-record length (tweakable)
 const echoAudio = document.getElementById("echoAudio");
 
 
-function toggleRecording() {
+let ws;
+let audioCtx;
+let source;
+let processor;
+// let isRecording = false;
+
+async function toggleRecording() {
   if (!isRecording) {
-    // start only if not recording
-    isRecording = true;
     startRecording();
-    document.getElementById('recordBtn').textContent = "⏹️ Stop";
   } else {
-    // stop only if currently recording
-    isRecording = false;
     stopRecording();
-    document.getElementById('recordBtn').textContent = "🎙️ Start";
   }
 }
 
+async function startRecording() {
+  ws = new WebSocket("ws://127.0.0.1:8000/ws-stt");
 
+  ws.onopen = async () => {
+    console.log("✅ WebSocket connected, starting audio stream...");
 
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioCtx = new AudioContext({ sampleRate: 16000 });
+    console.log("Browser sampleRate:", audioCtx.sampleRate);
 
-async function startRecording(manual = true) {
-  manualRecording = manual; // keep your flag, though we won't use upload/LLM here
+    source = audioCtx.createMediaStreamSource(stream);
+    processor = audioCtx.createScriptProcessor(4096, 1, 1);
 
-  try {
-    // 1) Open WebSocket to the new audio endpoint
-    audioWS = new WebSocket(`ws://127.0.0.1:8000/ws-audio?session_id=${sessionId}`);
-    audioWS.binaryType = "arraybuffer";
+    source.connect(processor);
+    processor.connect(audioCtx.destination);
 
-    audioWS.onopen = async () => {
-      console.log("[WS] connected for audio streaming");
+    processor.onaudioprocess = (e) => {
+      if (!isRecording || ws.readyState !== WebSocket.OPEN) return;
 
-      // 2) Get mic & start MediaRecorder
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const input = e.inputBuffer.getChannelData(0);
+      const pcm16 = downsampleTo16k(input, audioCtx.sampleRate);
+      console.log("PCM length:", pcm16.byteLength, "first 5 samples:", new Int16Array(pcm16).slice(0,5));
+      ws.send(pcm16);
 
-      // NOTE: default is usually audio/webm; keep container/extension consistent on server
-      mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-
-      mediaRecorder.ondataavailable = async (event) => {
-        if (event.data && event.data.size > 0 && audioWS && audioWS.readyState === WebSocket.OPEN) {
-          const buf = await event.data.arrayBuffer();
-          audioWS.send(buf); // 3) send binary chunk to server
-        }
-      };
-
-      // timeslice (ms) → emit chunk every 250ms
-      mediaRecorder.start(250);
-      document.getElementById('uploadStatus').textContent = "🔴 Streaming…";
-      console.log("🎙️ Streaming started...");
+      console.log("Chunk sent:", pcm16.byteLength, "bytes");
     };
 
-    audioWS.onmessage = (evt) => {
-      // Server replies "SAVED:/streams/..." on DONE
-      if (typeof evt.data === "string" && evt.data.startsWith("SAVED:")) {
-        const path = evt.data.substring("SAVED:".length);
-        document.getElementById('uploadStatus').textContent = `✅ Saved: ${path}`;
-        console.log("Saved file at:", path);
+    isRecording = true;
+    document.getElementById("recordBtn").textContent = "Stop";
+    document.getElementById("uploadStatus").textContent = "🎙️ Listening...";
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === "transcript") {
+        const el = document.getElementById("liveTranscript");
+        el.textContent += data.text + (data.eot ? "\n" : " ");
+        el.scrollTop = el.scrollHeight;
       }
-    };
-
-    audioWS.onclose = () => {
-      console.log("[WS] closed");
-    };
-
-    audioWS.onerror = (e) => {
-      console.error("[WS] error", e);
-      document.getElementById('uploadStatus').textContent = "WebSocket error";
-    };
-
-  } catch (err) {
-    console.error("Microphone access denied or error:", err);
-    alert("Microphone access is required.");
-  }
+    } catch (e) {
+      console.error("Non-JSON WS msg:", event.data);
+    }
+  };
 }
 
 
 function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== "inactive") {
-    mediaRecorder.stop();
-    console.log("⏹️ Recording stopped.");
+  if (processor) processor.disconnect();
+  if (source) source.disconnect();
+  if (audioCtx) audioCtx.close();
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send("DONE");
+    ws.close();
   }
-  // tell server to finalize file
-  if (audioWS && audioWS.readyState === WebSocket.OPEN) {
-    audioWS.send("DONE");
-    audioWS.close();
-  }
-  document.getElementById('uploadStatus').textContent = "⏹️ Stopped (finalizing…)";
+
+  isRecording = false;
+  document.getElementById("recordBtn").textContent = "Start";
+  document.getElementById("uploadStatus").textContent = "Stopped";
 }
+
+function floatTo16BitPCM(float32Array) {
+  let buffer = new ArrayBuffer(float32Array.length * 2);
+  let view = new DataView(buffer);
+  for (let i = 0; i < float32Array.length; i++) {
+    let s = Math.max(-1, Math.min(1, float32Array[i]));
+    view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return buffer;
+}
+
+
+
+
+
 
 
 function playFallbackVoice(text) {
@@ -256,4 +261,177 @@ async function sendToLLM(blob) {
     } catch (err) {
         appendMessage('ai', "Connection error. Please try again.");
     }
+}
+
+
+let stt = {
+  ws: null,
+  ctx: null,
+  node: null,
+  media: null,
+  started: false,
+};
+
+async function startSTT() {
+  if (stt.started) return;
+  stt.started = true;
+
+  // Connect WebSocket to our FastAPI endpoint
+  stt.ws = new WebSocket(`ws://${location.hostname}:8000/ws-stt`);
+  stt.ws.onmessage = (evt) => {
+    try {
+      const data = JSON.parse(evt.data);
+      if (data?.type === "transcript") {
+        const el = document.getElementById("live-transcript");
+        if (el) el.textContent += (data.text || "") + (data.eot ? "\n" : " ");
+      }
+    } catch (_) {}
+  };
+
+  // 16 kHz audio context
+  stt.ctx = new (window.AudioContext || window.webkitAudioContext)({
+    sampleRate: 16000,
+  });
+
+  // Create a worklet on the fly (no extra file needed)
+  const workletCode = `
+  class PCM16Processor extends AudioWorkletProcessor {
+    constructor() {
+      super();
+      this._buf = [];
+      this._samplesPerPacket = 0 | (0.05 * 16000); // ~50 ms
+    }
+    process(inputs) {
+      const input = inputs[0];
+      if (!input || !input[0]) return true;
+      const ch0 = input[0]; // Float32Array
+      const n = ch0.length;
+
+      // Convert Float32 [-1,1] -> Int16LE bytes
+      // Accumulate until ~50ms worth, then post to main thread
+      const bytes = new Uint8Array(n * 2);
+      const view = new DataView(bytes.buffer);
+      for (let i = 0; i < n; i++) {
+        let s = Math.max(-1, Math.min(1, ch0[i]));
+        const v = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        view.setInt16(i * 2, v, true); // little-endian
+      }
+      this._buf.push(bytes);
+
+      // How many samples are buffered?
+      let samples = 0;
+      for (const b of this._buf) samples += (b.byteLength >> 1);
+      if (samples >= this._samplesPerPacket) {
+        let total = 0;
+        for (const b of this._buf) total += b.byteLength;
+        const out = new Uint8Array(total);
+        let off = 0;
+        for (const b of this._buf) { out.set(b, off); off += b.byteLength; }
+        this._buf = [];
+        this.port.postMessage(out);
+      }
+      return true;
+    }
+  }
+  registerProcessor('pcm16-processor', PCM16Processor);
+  `;
+  const blob = new Blob([workletCode], { type: "application/javascript" });
+  const url = URL.createObjectURL(blob);
+  await stt.ctx.audioWorklet.addModule(url);
+  URL.revokeObjectURL(url);
+
+  // Mic
+  stt.media = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+  });
+
+  const src = stt.ctx.createMediaStreamSource(stt.media);
+  stt.node = new AudioWorkletNode(stt.ctx, "pcm16-processor");
+  stt.node.port.onmessage = (e) => {
+    if (stt.ws && stt.ws.readyState === 1) {
+      stt.ws.send(e.data); // binary Uint8Array
+    }
+  };
+
+  // Do NOT connect to destination to avoid echo
+  src.connect(stt.node);
+  // (no node.connect(ctx.destination))
+
+  document.getElementById("sttStatus")?.classList.remove("hidden");
+}
+
+async function stopSTT() {
+  if (!stt.started) return;
+  stt.started = false;
+
+  try { stt.ws?.send("DONE"); } catch(_){}
+  try { stt.ws?.close(); } catch(_){}
+  stt.ws = null;
+
+  try { stt.node?.disconnect(); } catch(_){}
+  stt.node = null;
+
+  try { stt.media?.getTracks().forEach(t => t.stop()); } catch(_){}
+  stt.media = null;
+
+  try { await stt.ctx?.close(); } catch(_){}
+  stt.ctx = null;
+
+  document.getElementById("sttStatus")?.classList.add("hidden");
+}
+
+// Expose to buttons if you like:
+window.startSTT = startSTT;
+window.stopSTT = stopSTT;
+
+
+function downsampleTo16k(float32Array, inputSampleRate) {
+  if (inputSampleRate === 16000) {
+    return floatTo16BitPCM(float32Array);
+  }
+
+  const ratio = inputSampleRate / 16000;
+  const newLength = Math.round(float32Array.length / ratio);
+  const result = new Float32Array(newLength);
+
+  let offset = 0;
+  for (let i = 0; i < newLength; i++) {
+    result[i] = float32Array[Math.floor(i * ratio)];
+  }
+
+  return floatTo16BitPCM(result);
+}
+
+
+
+// --- Quick mic test with MediaRecorder ---
+async function testMicRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new MediaRecorder(stream);
+    const chunks = [];
+
+    recorder.ondataavailable = (e) => chunks.push(e.data);
+
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: "audio/webm" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.controls = true;
+      document.body.appendChild(audio);
+      audio.play();
+      console.log("✅ Mic test recording ready, length:", blob.size, "bytes");
+    };
+
+    recorder.start();
+    console.log("🎙️ Recording for 3 seconds...");
+    setTimeout(() => recorder.stop(), 3000);
+  } catch (err) {
+    console.error("Mic test failed:", err);
+  }
 }
