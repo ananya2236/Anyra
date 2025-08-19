@@ -499,16 +499,29 @@ async def ws_stt(websocket: WebSocket):
 
     def on_turn(self: StreamingClient, event: TurnEvent):
         print(f"[AAI] {event.transcript} (eot={event.end_of_turn})")
-        # Optionally send to frontend
+
+        # Always stream the transcript for this turn
         asyncio.run_coroutine_threadsafe(
             websocket.send_json({
-                "type": "transcript",
+                "type": "turn",
                 "text": event.transcript,
                 "eot": event.end_of_turn,
                 "formatted": event.turn_is_formatted,
             }),
             loop
         )
+
+        # ✅ Extra: send a distinct "turn_end" notification when the speaker stops
+        if event.end_of_turn:
+            asyncio.run_coroutine_threadsafe(
+                websocket.send_json({
+                    "type": "turn_end",
+                    "text": event.transcript,
+                    "formatted": event.turn_is_formatted
+                }),
+                loop
+            )
+
 
     def on_terminated(self: StreamingClient, event: TerminationEvent):
         print(f"[AAI] Terminated. {event.audio_duration_seconds}s audio processed")

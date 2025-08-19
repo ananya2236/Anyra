@@ -135,17 +135,32 @@ async function startRecording() {
   };
 
   ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.type === "transcript") {
-        const el = document.getElementById("liveTranscript");
-        el.textContent += data.text + (data.eot ? "\n" : " ");
-        el.scrollTop = el.scrollHeight;
+  try {
+    const data = JSON.parse(event.data);
+    const el = document.getElementById("liveTranscript"); // ✅ match index.html ID
+
+    if (data.type === "turn") {
+      // Show interim transcript
+      if (!data.eot) {
+        // Replace the last line with the current partial
+        let lines = el.textContent.split("\n");
+        lines[lines.length - 1] = data.text || "";
+        el.textContent = lines.join("\n");
+      } else {
+        // Finalize transcript
+        el.textContent += (el.textContent ? "\n" : "") + (data.text || "");
       }
-    } catch (e) {
-      console.error("Non-JSON WS msg:", event.data);
+      el.scrollTop = el.scrollHeight;
     }
-  };
+
+    if (data.type === "turn_end") {
+      document.getElementById("uploadStatus").textContent = "Turn ended ✅ Transcript added.";
+    }
+  } catch (e) {
+    console.error("Non-JSON WS msg:", event.data);
+  }
+};
+
 }
 
 
