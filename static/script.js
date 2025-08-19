@@ -137,29 +137,21 @@ async function startRecording() {
   ws.onmessage = (event) => {
   try {
     const data = JSON.parse(event.data);
-    const el = document.getElementById("liveTranscript"); // ✅ match index.html ID
 
     if (data.type === "turn") {
-      // Show interim transcript
       if (!data.eot) {
-        // Replace the last line with the current partial
-        let lines = el.textContent.split("\n");
-        lines[lines.length - 1] = data.text || "";
-        el.textContent = lines.join("\n");
+        // update interim bubble
+        appendMessage('user', data.text || "", true);
       } else {
-        // Finalize transcript
-        el.textContent += (el.textContent ? "\n" : "") + (data.text || "");
+        // finalize
+        appendMessage('user', data.text || "", false);
       }
-      el.scrollTop = el.scrollHeight;
-    }
-
-    if (data.type === "turn_end") {
-      document.getElementById("uploadStatus").textContent = "Turn ended ✅ Transcript added.";
     }
   } catch (e) {
     console.error("Non-JSON WS msg:", event.data);
   }
 };
+
 
 }
 
@@ -207,21 +199,45 @@ function playFallbackVoice(text) {
 }
 
 
-function appendMessage(sender, text) {
-    const chatContainer = document.getElementById('chatContainer');
-    const messageDiv = document.createElement('div');
+function appendMessage(sender, text, interim = false) {
+  const chatContainer = document.getElementById('chatContainer');
 
-    if (sender === 'user') {
-        messageDiv.className = "flex justify-end";
-        messageDiv.innerHTML = `<div class="bg-cyan-900 text-white rounded-lg p-5 max-w-xs border border-white">${text}</div>`;
+  // If interim bubble exists, update it
+  if (interim) {
+    let lastBubble = chatContainer.querySelector('.message.interim');
+    if (!lastBubble) {
+      lastBubble = document.createElement('div');
+      lastBubble.className = `message interim flex justify-end`;
+      lastBubble.innerHTML = `
+        <div class="bg-cyan-900/70 italic text-white rounded-2xl rounded-tr-none px-4 py-2 max-w-xs border border-cyan-400 text-sm">
+          ${text}
+        </div>`;
+      chatContainer.appendChild(lastBubble);
     } else {
-        messageDiv.className = "flex";
-        messageDiv.innerHTML = `<div class="text-white rounded-lg p-3 max-w-xs border border-white">${text}</div>`;
+      lastBubble.querySelector("div").textContent = text;
     }
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    return;
+  }
 
-    chatContainer.appendChild(messageDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight; 
+  // Finalized bubble
+  const messageDiv = document.createElement('div');
+  messageDiv.className = "message flex justify-end";
+  messageDiv.innerHTML = `
+    <div class="bg-cyan-600 text-white rounded-2xl px-4 py-2 max-w-xs rounded-tr-none border border-cyan-700 shadow text-sm">
+      ${text}
+      <div class="text-[10px] text-gray-300 mt-1">${new Date().toLocaleTimeString()}</div>
+    </div>`;
+  chatContainer.appendChild(messageDiv);
+
+  // Remove interim bubble if present
+  const interimBubble = chatContainer.querySelector('.message.interim');
+  if (interimBubble) interimBubble.remove();
+
+  chatContainer.scrollTop = chatContainer.scrollHeight;
 }
+
+
 
 async function sendToLLM(blob) {
     const formData = new FormData();
