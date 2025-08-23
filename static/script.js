@@ -150,6 +150,35 @@ async function startRecording() {
 
     // Final, punctuated text -> upgrade/create a single bubble.
     appendMessage('user', data.text || "", false);
+    // ---- Day 19: start LLM streaming once we have the final transcript ----
+try {
+  const userFinal = data.text || "";
+  const url = `http://127.0.0.1:8000/llm/stream?text=${encodeURIComponent(userFinal)}`;
+
+  // EventSource = dead-simple SSE client (GET only, perfect for this use case)
+  const es = new EventSource(url);
+
+  let full = "";
+  es.onmessage = (ev) => {
+    // prints partial chunks as they arrive
+    console.log("[LLM][chunk]", ev.data);
+    full += ev.data;
+  };
+
+  es.addEventListener("done", (ev) => {
+    // prints the final accumulated response once
+    console.log("[LLM][final]", ev.data || full);
+    es.close();
+  });
+
+  es.onerror = (err) => {
+    console.error("[LLM][error]", err);
+    es.close();
+  };
+} catch (e) {
+  console.error("Failed to start LLM stream", e);
+}
+
   } catch (e) {
     console.error("Non-JSON WS msg:", event.data);
   }
@@ -481,4 +510,172 @@ async function testMicRecording() {
   } catch (err) {
     console.error("Mic test failed:", err);
   }
+}
+
+
+
+
+// ----------------------------
+// Day 21: Receive server->client base64 audio via WS
+// ----------------------------
+let wsAudioOut = null;
+let audioChunksB64 = [];  // collected base64 chunks
+
+function startBase64Stream() {
+  // IMPORTANT: MP3 file stream karo, WAV nahi (MSE compatibility)
+  const wsUrl = new URL("ws://127.0.0.1:8000/ws-audio-out");
+  wsUrl.searchParams.set("path", "sample.mp3"); // <-- yahan apni mp3 ka naam
+  wsUrl.searchParams.set("chunk", "16384");      // bigger chunks -> smoother playback (tweakable)
+
+  const player = createMSEPlayer('audio/mpeg');
+  const audioEl = player.element;
+
+  wsAudioOut = new WebSocket(wsUrl.toString());
+
+  wsAudioOut.onopen = () => {
+    console.log("🔗 [Day22] Connected to /ws-audio-out");
+    // try autoplay; agar blocked ho to user click pe play ho jayega
+    audioEl.play().catch(() => console.log('Autoplay blocked—click Play.'));
+  };
+
+  wsAudioOut.onmessage = (event) => {
+    const data = event.data;
+
+    if (data === "END") {
+      console.log("🏁 [Day22] Stream complete");
+      player.end();
+      return;
+    }
+    if (typeof data === "string" && data.startsWith("ERROR:")) {
+      console.error("[Day22] Server error:", data);
+      return;
+    }
+
+    // Base64 -> bytes -> append
+    try {
+  const u8 = b64ToU8(data);
+  console.log("Received chunk, length:", u8.length);
+  player.appendChunk(u8);
+} catch (e) {
+  console.error("Chunk append failed:", e);
+}
+
+  };
+
+  wsAudioOut.onerror = (err) => console.error("[Day22] WS error", err);
+  wsAudioOut.onclose = () => console.log("[Day22] WS closed");
+}
+
+
+// (Optional) If you want to verify by actually hearing the audio,
+// you can reconstruct a Blob and play it in your hidden <audio id="audioPlayer"> element.
+function reconstructAndPlayFromB64(chunks) {
+  try {
+    // Convert joined base64 -> ArrayBuffer
+    const b64 = chunks.join("");
+    const byteString = atob(b64);
+    const buf = new ArrayBuffer(byteString.length);
+    const view = new Uint8Array(buf);
+    for (let i = 0; i < byteString.length; i++) view[i] = byteString.charCodeAt(i);
+
+    const blob = new Blob([buf], { type: "audio/wav" }); // or audio/mpeg if mp3
+    const url = URL.createObjectURL(blob);
+    const audioEl = document.getElementById("audioPlayer");
+    audioEl.src = url;
+    audioEl.style.display = "block";
+    console.log("▶️ [Day21] Reconstructed audio Blob, ready to play");
+    audioEl.play().catch(() => console.log("Click play to listen."));
+  } catch (e) {
+    console.error("Failed to reconstruct audio:", e);
+  }
+}
+
+
+
+// --- Day 22: MediaSource-based streaming audio player ---
+function createMSEPlayer(mime = 'audio/mpeg') {
+  const audioEl = document.getElementById('audioPlayer');
+  audioEl.style.display = 'block';
+
+  const mediaSource = new MediaSource();
+  const url = URL.createObjectURL(mediaSource);
+  audioEl.src = url;
+
+  let sourceBuffer;
+  let queue = [];
+  let endWhenEmpty = false;
+
+  function appendChunk(u8) {
+    if (!sourceBuffer || sourceBuffer.updating) {
+      queue.push(u8);
+      return;
+    }
+    try {
+      sourceBuffer.appendBuffer(u8);
+    } catch (e) {
+      console.error('appendBuffer failed', e);
+    }
+  }
+
+  mediaSource.addEventListener('sourceopen', () => {
+    if (!MediaSource.isTypeSupported(mime)) {
+      console.error('MIME not supported for MSE:', mime);
+      return;
+    }
+    sourceBuffer = mediaSource.addSourceBuffer(mime);
+
+    sourceBuffer.addEventListener('updateend', () => {
+      if (queue.length > 0 && !sourceBuffer.updating) {
+        const next = queue.shift();
+        try { sourceBuffer.appendBuffer(next); } catch (e) { console.error(e); }
+        console.log("Buffered:", sourceBuffer.buffered.length > 0 
+  ? sourceBuffer.buffered.end(0).toFixed(2) + "s"
+  : "no buffer");
+
+      } else if (endWhenEmpty && !sourceBuffer.updating && queue.length === 0) {
+        try { mediaSource.endOfStream(); } catch (_) {}
+      }
+    });
+  });
+
+  return {
+    element: audioEl,
+    appendChunk,
+    end: () => { endWhenEmpty = true; },
+  };
+}
+
+function b64ToU8(b64) {
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+
+
+async function startMicStream() {
+  const ws = new WebSocket("ws://127.0.0.1:8000/ws-mic");
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const audioContext = new AudioContext();
+  const source = audioContext.createMediaStreamSource(stream);
+  const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+  source.connect(processor);
+  processor.connect(audioContext.destination);
+
+  processor.onaudioprocess = (e) => {
+    const inputData = e.inputBuffer.getChannelData(0); // Float32
+    // convert to 16-bit PCM
+    let buffer = new ArrayBuffer(inputData.length * 2);
+    let view = new DataView(buffer);
+    let offset = 0;
+    for (let i = 0; i < inputData.length; i++, offset += 2) {
+      let s = Math.max(-1, Math.min(1, inputData[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    ws.send(buffer);
+  };
+
+  ws.onopen = () => console.log("Mic stream started");
+  ws.onclose = () => console.log("Mic stream closed");
 }

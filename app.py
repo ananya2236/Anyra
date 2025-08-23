@@ -23,6 +23,17 @@ from assemblyai.streaming.v3 import (
     StreamingClient, StreamingClientOptions, StreamingEvents,
     StreamingParameters, BeginEvent, TerminationEvent, TurnEvent, StreamingError
 )
+# --- imports near the top ---
+from fastapi.responses import StreamingResponse
+import asyncio, json
+import websockets 
+
+# --- NEW: Streaming LLM endpoint ---
+from pydantic import BaseModel
+from fastapi import Query
+import base64
+
+
 
 
 # Load API key from .env file
@@ -577,6 +588,59 @@ async def ws_stt(websocket: WebSocket):
         print("[WS-STT] closed")
 
 
+from starlette.websockets import WebSocket
+from starlette.websockets import WebSocketDisconnect
+
+@app.websocket("/ws-audio-out")
+async def ws_audio_out(websocket: WebSocket):
+    """
+    Streams audio to the client as base64 text frames.
+    Client can connect with:
+      ws://127.0.0.1:8000/ws-audio-out?path=sample.wav&chunk=4096
+    Or stream from a URL:
+      ws://127.0.0.1:8000/ws-audio-out?url=<direct-audio-url>&chunk=4096
+    """
+    await websocket.accept()
+
+    # Source selection
+    src_url = websocket.query_params.get("url")
+    src_path = websocket.query_params.get("path", "sample.wav")
+    chunk_size = int(websocket.query_params.get("chunk", "4096"))
+
+    try:
+        if src_url:
+            # Stream from remote URL
+            with requests.get(src_url, stream=True, timeout=20) as r:
+                r.raise_for_status()
+                for raw in r.iter_content(chunk_size=chunk_size):
+                    if not raw:
+                        continue
+                    b64 = base64.b64encode(raw).decode("utf-8")
+                    await websocket.send_text(b64)
+        else:
+            # Stream from local file
+            with open(src_path, "rb") as f:
+                while True:
+                    raw = f.read(chunk_size)
+                    if not raw:
+                        break
+                    b64 = base64.b64encode(raw).decode("utf-8")
+                    await websocket.send_text(b64)
+
+        # Signal end of stream
+        await websocket.send_text("END")
+
+    except WebSocketDisconnect:
+        print("[ws-audio-out] Client disconnected")
+    except Exception as e:
+        print("[ws-audio-out] Error:", e)
+        try:
+            await websocket.send_text(f"ERROR:{e}")
+        except Exception:
+            pass
+
+
+
 
 
 # below your UPLOAD_DIR logic
@@ -587,3 +651,177 @@ STREAMS_DIR.mkdir(exist_ok=True)
 app.mount("/streams", StaticFiles(directory="streams"), name="streams")
 
 
+
+
+@app.get("/llm/stream")
+async def llm_stream(text: str = Query(..., min_length=1)):
+    """
+    Streams a Gemini response (chunk-by-chunk) as SSE.
+    Also prints tokens to the server console in real time.
+    """
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY missing")
+
+    def sse():
+        try:
+            # keep the reply short + conversational
+            prompt = (
+                "You are a concise, friendly voice agent. "
+                "Reply as if you were speaking, no bullet points.\n\n"
+                f"User: {text}\nAssistant:"
+            )
+            model = genai.GenerativeModel("models/gemini-1.5-flash")
+            stream = model.generate_content(prompt, stream=True)  # <-- streaming! 👇
+
+            acc = []
+            print("\n[LLM stream BEGIN] --------------------")
+            for chunk in stream:
+                piece = getattr(chunk, "text", None) or ""
+                if not piece:
+                    continue
+                # print tokens to server console as they arrive
+                print(piece, end="", flush=True)
+                acc.append(piece)
+                # send to browser via SSE (EventSource)
+                yield f"data: {piece}\n\n"
+
+            full = "".join(acc)
+            print("\n[LLM stream END] ----------------------")
+            # send a final 'done' event with the whole text (handy for the client to log once)
+            yield f"event: done\ndata: {full}\n\n"
+
+        except Exception as e:
+            err = f"LLM stream error: {e}"
+            print("\n" + err)
+            yield f"event: error\ndata: {err}\n\n"
+
+    return StreamingResponse(sse(), media_type="text/event-stream")
+
+
+
+
+
+WS_URL = "wss://api.murf.ai/v1/speech/stream-input"
+MURF_SAMPLE_RATE = 44100
+MURF_CHANNEL = "MONO"
+MURF_FORMAT = "MP3"
+
+@app.post("/day20/llm-to-murf")
+async def day20_llm_to_murf(q: str = Query(..., min_length=1)):
+    """
+    Streams LLM tokens to Murf via WebSocket and prints base64 audio to server console.
+    No UI changes; just hit this endpoint and watch your terminal.
+    """
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY missing")
+    if not MURF_API_KEY:
+        raise HTTPException(status_code=500, detail="MURF_API_KEY missing")
+
+    # Use a static context_id to avoid "context limit exceeded"
+    CONTEXT_ID = "anyra-day20"  # keep fixed for this task
+
+    # 1) Connect to Murf WebSocket with auth + output format
+    ws_query = (
+        f"{WS_URL}?api-key={MURF_API_KEY}"
+        f"&sample_rate={MURF_SAMPLE_RATE}"
+        f"&channel_type={MURF_CHANNEL}"
+        f"&format={MURF_FORMAT}"
+    )
+
+    async with websockets.connect(ws_query) as ws:
+        # 2) Send voice config once (you can tweak style/rate/pitch/variation)
+        voice_config_msg = {
+            "voice_config": {
+                "voiceId": "en-IN-alia",
+                "style": "Conversational",
+                "rate": 0,
+                "pitch": 0,
+                "variation": 1
+            }
+        }
+        await ws.send(json.dumps(voice_config_msg))
+        print("[MURF ▶] Sent voice_config")
+
+        # 3) Start a background task to receive audio and print base64
+        async def murf_receiver():
+            try:
+                while True:
+                    msg = await ws.recv()
+                    data = json.loads(msg)
+                    # Murf streams base64 audio chunks
+                    if "audio" in data:
+                        b64 = data["audio"]
+                        # Print the ENTIRE base64 so you can screenshot it for LinkedIn
+                        print(f"[MURF AUDIO BASE64] {b64}")
+                    if data.get("final"):
+                        print("[MURF ✔] final=true (all audio sent for this context)")
+                        break
+            except Exception as e:
+                print("[MURF ❌ receiver error]", e)
+
+        recv_task = asyncio.create_task(murf_receiver())
+
+        # 4) Stream LLM tokens and flush on sentence boundaries
+        #    (Murf works best when you send text in complete sentences)
+        system = (
+            "You are a concise, friendly Indian-English voice agent. "
+            "Reply naturally in 1–3 sentences, no lists."
+        )
+        prompt = f"{system}\n\nUser: {q}\nAssistant:"
+
+        model = genai.GenerativeModel("models/gemini-1.5-flash")
+        stream = model.generate_content(prompt, stream=True)  # streaming tokens
+
+        buffer = ""
+
+        async def send_text_chunk(txt: str):
+            payload = {"context_id": CONTEXT_ID, "text": txt}
+            await ws.send(json.dumps(payload))
+            print(f"[MURF ▶] sent text chunk: {txt!r}")
+
+        # accumulate tokens and send on ., ?, !
+        def pop_sentence(buf: str):
+            for p in [".", "?", "!"]:
+                idx = buf.find(p)
+                if idx != -1:
+                    sent = buf[:idx+1].strip()
+                    rest = buf[idx+1:].lstrip()
+                    return sent, rest
+            return None, buf
+
+        for chunk in stream:
+            token = getattr(chunk, "text", "") or ""
+            if not token:
+                continue
+            buffer += token
+            # flush any complete sentences
+            while True:
+                sent, buffer = pop_sentence(buffer)
+                if not sent:
+                    break
+                await send_text_chunk(sent)
+
+        # send any tail text (if LLM didn't end with punctuation)
+        if buffer.strip():
+            await send_text_chunk(buffer.strip())
+
+        # 5) Tell Murf this turn is done (important for freeing the context)
+        await ws.send(json.dumps({"context_id": CONTEXT_ID, "end": True}))
+        print("[MURF ▶] end=true")
+
+        # 6) Wait for final audio
+        await recv_task
+
+    return {"ok": True, "note": "Check server console for base64 audio chunks."}
+
+
+@app.websocket("/ws-mic")
+async def ws_mic(ws: WebSocket):
+    await ws.accept()
+    try:
+        while True:
+            data = await ws.receive_bytes()  # raw pcm16 audio
+            # for now just print or log size
+            print("Got audio chunk", len(data))
+    except Exception as e:
+        print("Mic stream ended", e)
