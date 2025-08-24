@@ -33,6 +33,212 @@ from pydantic import BaseModel
 from fastapi import Query
 import base64
 
+app = FastAPI()
+
+
+
+# === New full-duplex voice pipeline ===
+@app.websocket("/ws-voice")
+async def ws_voice(websocket: WebSocket):
+    """
+    1) Receive 16 kHz PCM16 bytes from the browser (same as /ws-stt).
+    2) Stream them to AssemblyAI; send back interim + final transcripts:
+         { "type":"turn", "text": "...", "eot": bool, "formatted": bool }
+    3) On final+formatted: call Gemini -> get reply -> stream Murf audio back:
+         { "event":"audio_chunk", "seq": N, "data": "<base64>" }
+         { "event":"end_of_audio", "total_chunks": N }
+    """
+    await websocket.accept()
+
+    session_id = websocket.query_params.get("session_id", "anon")
+    loop = asyncio.get_event_loop()
+    q: "queue.Queue[bytes|None]" = queue.Queue()
+
+    # --- helper: send JSON safely from threads ---
+    def ws_send_json(obj):
+        asyncio.run_coroutine_threadsafe(websocket.send_json(obj), loop)
+
+    # --- AAI event handlers (same spirit as /ws-stt) ---
+    def on_begin(self: StreamingClient, event: BeginEvent):
+        print(f"[AAI] Session started: {event.id}")
+
+    async def _handle_turn_async(text: str, eot: bool, formatted: bool):
+        # 1) Always stream transcript to client
+        await websocket.send_json({"type": "turn", "text": text, "eot": eot, "formatted": formatted})
+
+        # 2) If end-of-turn + formatted => run LLM -> Murf streaming
+        if eot and formatted and text.strip():
+            # maintain chat history
+            history = chat_sessions.setdefault(session_id, [])
+            history.append({"role": "user", "content": text})
+
+            # Build structured messages for Gemini
+            
+            # Convert history into Gemini-compatible messages
+            messages = [
+                {"role": "user", "parts": ["You are a friendly AI voice assistant. "
+                                           "Reply as if speaking, in 1–3 concise sentences. No lists."]}
+            ]
+            
+            for msg in history:
+                if msg["role"] == "user":
+                    messages.append({"role": "user", "parts": [msg["content"]]})
+                else:  # assistant
+                    messages.append({"role": "model", "parts": [msg["content"]]})
+            
+            
+            # LLM
+            if GEMINI_API_KEY:
+                try:
+                    model = genai.GenerativeModel("models/gemini-1.5-flash")
+                    llm_resp = model.generate_content(messages)
+                    reply = (llm_resp.text or "").strip()
+                except Exception as e:
+                    print("[/ws-voice] Gemini error:", e)
+                    reply = "I'm having trouble connecting right now."
+            else:
+                reply = "I'm having trouble connecting right now."
+
+            if len(reply) > 3000:
+                reply = reply[:3000]
+
+            # keep assistant reply in history
+            history.append({"role": "assistant", "content": reply})
+
+            # --- Stream TTS via Murf WS and forward chunks to browser ---
+            if not MURF_API_KEY:
+                await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
+                return
+
+            WS = (
+                f"{WS_URL}?api-key={MURF_API_KEY}"
+                f"&sample_rate={MURF_SAMPLE_RATE}"
+                f"&channel_type={MURF_CHANNEL}"
+                f"&format={MURF_FORMAT}"
+            )
+
+            async def tts_stream():
+                seq = 0
+                try:
+                    async with websockets.connect(WS) as ws_murf:
+                        # 1) voice config
+                        vc = {
+                            "voice_config": {
+                                "voiceId": "en-IN-alia",
+                                "style": "Conversational",
+                                "rate": 0,
+                                "pitch": 0,
+                                "variation": 1,
+                            }
+                        }
+                        await ws_murf.send(json.dumps(vc))
+
+                        # 2) send reply text in sentence chunks
+                        def split_sents(s: str):
+                            parts, buf = [], s.strip()
+                            while True:
+                                idxs = [buf.find("."), buf.find("?"), buf.find("!")]
+                                idxs = [i for i in idxs if i != -1]
+                                idx = min(idxs) if idxs else -1
+                                if idx == -1:
+                                    break
+                                parts.append(buf[:idx + 1].strip())
+                                buf = buf[idx + 1:].lstrip()
+                            if buf:
+                                parts.append(buf)
+                            return parts
+
+                        for sent in split_sents(reply):
+                            await ws_murf.send(json.dumps({"context_id": session_id, "text": sent}))
+
+                        await ws_murf.send(json.dumps({"context_id": session_id, "end": True}))
+
+                        # 3) forward Murf audio to browser
+                        while True:
+                            msg = await ws_murf.recv()
+                            data = json.loads(msg)
+                            if "audio" in data:
+                                seq += 1
+                                await websocket.send_json({"event": "audio_chunk", "seq": seq, "data": data["audio"]})
+                            if data.get("final"):
+                                break
+
+                except Exception as e:
+                    print("[/ws-voice] Murf stream error:", e)
+                    try:
+                        await websocket.send_json({"event": "error", "message": str(e)})
+                    except Exception:
+                        pass
+                finally:
+                    try:
+                        await websocket.send_json({"event": "end_of_audio", "total_chunks": seq})
+                    except Exception:
+                        pass
+
+            asyncio.create_task(tts_stream())
+
+
+
+    def on_turn(self: StreamingClient, event: TurnEvent):
+        # Bridge to asyncio loop
+        asyncio.run_coroutine_threadsafe(
+            _handle_turn_async(event.transcript, event.end_of_turn, event.turn_is_formatted),
+            loop
+        )
+
+    def on_terminated(self: StreamingClient, event: TerminationEvent):
+        print(f"[AAI] Terminated. {event.audio_duration_seconds}s audio processed")
+
+    def on_error(self: StreamingClient, error: StreamingError):
+        print(f"[AAI] Error: {error}")
+
+    # --- start AAI streaming client ---
+    client = StreamingClient(StreamingClientOptions(
+        api_key=ASSEMBLYAI_API_KEY,
+        api_host="streaming.assemblyai.com",
+    ))
+    client.on(StreamingEvents.Begin, on_begin)
+    client.on(StreamingEvents.Turn, on_turn)
+    client.on(StreamingEvents.Termination, on_terminated)
+    client.on(StreamingEvents.Error, on_error)
+
+    client.connect(StreamingParameters(
+        sample_rate=16000,
+        encoding="pcm_s16le",
+        format_turns=True
+    ))
+
+    # bytes iterator for AAI
+    def bytes_iter():
+        while True:
+            chunk = q.get()
+            if chunk is None:
+                break
+            yield chunk
+
+    t = threading.Thread(target=lambda: client.stream(bytes_iter()), daemon=True)
+    t.start()
+
+    try:
+        # receive PCM16 from browser; "DONE" stops
+        while True:
+            msg = await websocket.receive()
+            if msg["type"] == "websocket.receive":
+                if msg.get("bytes"):
+                    q.put(msg["bytes"])
+                elif msg.get("text") == "DONE":
+                    break
+            elif msg["type"] == "websocket.disconnect":
+                break
+    finally:
+        q.put(None)
+        try:
+            client.disconnect(terminate=True)
+        except Exception as e:
+            print("[/ws-voice] AAI disconnect error:", e)
+        print("[/ws-voice] closed")
+
+
 
 
 
@@ -42,8 +248,6 @@ MURF_API_KEY = os.getenv("MURF_API_KEY")
 
 ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 
-
-app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -594,48 +798,51 @@ from starlette.websockets import WebSocketDisconnect
 @app.websocket("/ws-audio-out")
 async def ws_audio_out(websocket: WebSocket):
     """
-    Streams audio to the client as base64 text frames.
+    Streams audio to the client as JSON frames:
+      {"event":"audio_chunk","seq":1,"data":"<base64>"}
+      {"event":"end_of_audio","total_chunks":n}
+      {"event":"error","message":"..."}
     Client can connect with:
       ws://127.0.0.1:8000/ws-audio-out?path=sample.wav&chunk=4096
-    Or stream from a URL:
+      or
       ws://127.0.0.1:8000/ws-audio-out?url=<direct-audio-url>&chunk=4096
     """
     await websocket.accept()
 
-    # Source selection
     src_url = websocket.query_params.get("url")
-    src_path = websocket.query_params.get("path", "sample.wav")
+    src_path = websocket.query_params.get("path", "sample.mp3")
     chunk_size = int(websocket.query_params.get("chunk", "4096"))
 
+    seq = 0
     try:
         if src_url:
-            # Stream from remote URL
             with requests.get(src_url, stream=True, timeout=20) as r:
                 r.raise_for_status()
                 for raw in r.iter_content(chunk_size=chunk_size):
                     if not raw:
                         continue
+                    seq += 1
                     b64 = base64.b64encode(raw).decode("utf-8")
-                    await websocket.send_text(b64)
+                    await websocket.send_json({"event": "audio_chunk", "seq": seq, "data": b64})
         else:
-            # Stream from local file
             with open(src_path, "rb") as f:
                 while True:
                     raw = f.read(chunk_size)
                     if not raw:
                         break
+                    seq += 1
                     b64 = base64.b64encode(raw).decode("utf-8")
-                    await websocket.send_text(b64)
+                    await websocket.send_json({"event": "audio_chunk", "seq": seq, "data": b64})
 
         # Signal end of stream
-        await websocket.send_text("END")
+        await websocket.send_json({"event": "end_of_audio", "total_chunks": seq})
 
     except WebSocketDisconnect:
         print("[ws-audio-out] Client disconnected")
     except Exception as e:
         print("[ws-audio-out] Error:", e)
         try:
-            await websocket.send_text(f"ERROR:{e}")
+            await websocket.send_json({"event": "error", "message": str(e)})
         except Exception:
             pass
 
@@ -815,13 +1022,3 @@ async def day20_llm_to_murf(q: str = Query(..., min_length=1)):
     return {"ok": True, "note": "Check server console for base64 audio chunks."}
 
 
-@app.websocket("/ws-mic")
-async def ws_mic(ws: WebSocket):
-    await ws.accept()
-    try:
-        while True:
-            data = await ws.receive_bytes()  # raw pcm16 audio
-            # for now just print or log size
-            print("Got audio chunk", len(data))
-    except Exception as e:
-        print("Mic stream ended", e)

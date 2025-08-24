@@ -154,16 +154,9 @@
 
       <!-- Buttons -->
       <div class="flex gap-6 mb-4">
-        <button id="recordBtn" onclick="toggleRecording()" 
-                class="hover:text-cyan-400 text-white font-bold p-2 rounded border border-cyan-500">
-          Start
+        <button id="recordBtn" audioPlayer class="hover:text-green-400 text-white font-bold p-2 rounded border border-green-500">
+          Start Assistant
         </button>
-        <button id="startB64Btn" onclick="startBase64Stream()"
-                class="hover:text-green-400 text-white font-bold p-2 rounded border border-green-500">
-          Start Base64 Stream
-        </button>
-        <button onclick="startMicStream()">Start Mic Stream</button>
-
         
       </div>
 
@@ -171,14 +164,12 @@
       <p id="uploadStatus" class="text-cyan-300 mt-4 text-center text-sm">Upload status will appear here</p>
       <!-- Live Transcript -->
 
-      <audio id="audioPlayer" controls style="display:none; width:100%; margin-top:1rem;"></audio>
-
-
-
 
       <!-- Audio -->
-      <audio id="echoAudio" controls class="mt-4"></audio>
-      <!-- <audio id="audioPlayer" controls style="display: none;"></audio> -->
+      
+      <audio id="audioPlayer" controls style="display: none;"></audio>
+       <audio id="ttsAudio" controls preload="none"></audio>
+
     </div>
 
     <!-- RIGHT FRAME (Hidden Initially) -->
