@@ -1,3 +1,29 @@
+document.addEventListener("mousemove", (e) => {
+  const container = document.getElementById("ai-container");
+  const eyeLeft = document.getElementById("eye-left");
+  const eyeRight = document.getElementById("eye-right");
+
+  const rect = container.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  // Cursor offset relative to AI container
+  const offsetX = e.clientX - centerX;
+  const offsetY = e.clientY - centerY;
+
+  // Limit max eye movement
+  const maxOffset = 30; 
+  const moveX = Math.max(Math.min(offsetX / 10, maxOffset), -maxOffset);
+  const moveY = Math.max(Math.min(offsetY / 10, maxOffset), -maxOffset);
+
+  // Apply transform to each eye
+  eyeLeft.style.transform = `translate(${moveX}px, ${moveY}px)`;
+  eyeRight.style.transform = `translate(${moveX}px, ${moveY}px)`;
+});
+
+
+
+
 console.log("Loading script.js...");
 
 let wsVoice;
@@ -104,36 +130,100 @@ function playStreamingChunk(chunk) {
 }
 
 // --- Chat UI helpers ---
-function appendMessage(sender, text, pending = false) {
+function appendMessage(sender, text, pending = false, replace = false) {
+  const c = document.getElementById("chatContainer");
+  if (!c) return;
+
+  let div;
+  if (replace && c.lastChild && c.lastChild.dataset.sender === sender) {
+    div = c.lastChild;
+    div.textContent = text;
+  } else {
+    div = document.createElement("div");
+    div.dataset.sender = sender;
+
+    // Bubble base style
+    div.className = "px-4 py-2 text-sm max-w-[75%] break-words shadow-md";
+
+    if (sender === "user") {
+      div.classList.add(
+        "bg-blue-600",
+        "text-white",
+        "self-end",
+        "ml-auto",
+        "rounded-2xl",
+        "rounded-tr-md",
+        "text-right"
+      );
+      div.textContent = text; // User text shows instantly
+    } else {
+      div.classList.add(
+        "bg-gray-700",
+        "text-white",
+        "self-start",
+        "mr-auto",
+        "rounded-2xl",
+        "rounded-tl-md",
+        "text-left"
+      );
+
+      // AI typing effect
+      let i = 0;
+      function typeWriter() {
+        if (i < text.length) {
+          div.textContent += text.charAt(i);
+          i++;
+          setTimeout(typeWriter, 30); // speed (ms) per character
+        }
+      }
+      typeWriter();
+    }
+
+    if (pending) div.classList.add("italic");
+    c.appendChild(div);
+  }
+
+  c.scrollTop = c.scrollHeight;
+}
+
+
+
+// function appendAIStreamBubbleStart() {
+//   const c = document.getElementById("chatContainer");
+//   if (!c) return;
+//   aiStreamBubbleEl = document.createElement("div");
+//   aiStreamBubbleEl.className = "bg-gray-700 p-3 rounded-lg text-sm";
+//   aiStreamBubbleEl.textContent = "AI is speaking…";
+//   c.appendChild(aiStreamBubbleEl);
+//   c.scrollTop = c.scrollHeight;
+// }
+// function updateAIStreamBubble(n) {
+//   if (aiStreamBubbleEl)
+//     aiStreamBubbleEl.textContent = `AI speaking… chunks: ${n}`;
+// }
+// function appendAIStreamBubbleFinalize() {
+//   if (aiStreamBubbleEl) aiStreamBubbleEl.textContent += " ✓";
+// }
+
+function appendAIStreamBubbleStart() {
+  // no need to display anything while streaming
+  aiStreamBubbleEl = null;
+}
+
+function updateAIStreamBubble(n) {
+  // do nothing
+}
+
+function appendAIStreamBubbleFinalize(replyText) {
   const c = document.getElementById("chatContainer");
   if (!c) return;
   const div = document.createElement("div");
-  div.className =
-    sender === "user"
-      ? "bg-blue-600 p-3 rounded-lg text-sm"
-      : "bg-gray-700 p-3 rounded-lg text-sm";
-  div.textContent = text;
-  if (pending) div.classList.add("italic");
+  div.className = "bg-gray-700 p-3 rounded-lg text-sm";
+  div.textContent = replyText;
   c.appendChild(div);
   c.scrollTop = c.scrollHeight;
 }
 
-function appendAIStreamBubbleStart() {
-  const c = document.getElementById("chatContainer");
-  if (!c) return;
-  aiStreamBubbleEl = document.createElement("div");
-  aiStreamBubbleEl.className = "bg-gray-700 p-3 rounded-lg text-sm";
-  aiStreamBubbleEl.textContent = "AI is speaking…";
-  c.appendChild(aiStreamBubbleEl);
-  c.scrollTop = c.scrollHeight;
-}
-function updateAIStreamBubble(n) {
-  if (aiStreamBubbleEl)
-    aiStreamBubbleEl.textContent = `AI speaking… chunks: ${n}`;
-}
-function appendAIStreamBubbleFinalize() {
-  if (aiStreamBubbleEl) aiStreamBubbleEl.textContent += " ✓";
-}
 function handleReceivedChunk(b64, seq) {
   audioChunksB64.push(b64);
   updateAIStreamBubble(audioChunksB64.length);
@@ -166,8 +256,8 @@ function startFullFlow() {
 
   wsVoice.onopen = async () => {
     console.log("✅ /ws-voice connected");
-    document.getElementById("recordBtn").textContent = "Stop Assistant";
-    document.getElementById("uploadStatus").textContent = "🎙️ Listening...";
+    document.getElementById("recordBtn").textContent = "Stop";
+    document.getElementById("uploadStatus").textContent = " Listening...";
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     voiceCtx = new AudioContext({ sampleRate: 16000 });
@@ -190,31 +280,46 @@ function startFullFlow() {
     try {
       const data = JSON.parse(event.data);
 
-      if (data.type === "turn") {
-        const { text, eot, formatted } = data;
+      // 🎙️ Handle transcription turns
+if (data.type === "turn") {
+  const { text, eot, formatted } = data;
 
-        if (!eot) {
-          appendMessage("user", text || "", true);
-          return;
-        }
-        if (!formatted) return;
+  if (!eot) {
+    // live transcription → update last bubble instead of appending
+    appendMessage("user", text || "", true, true);
+    return;
+  }
 
-        appendMessage("user", text || "", false);
+  // finalize user message
+  if (formatted) {
+    appendMessage("user", text || "", false, true);
+    showTypingIndicator();
+  }
 
-        appendAIStreamBubbleStart();
-        setupStreamingAudio();
-        audioChunksB64 = [];
-        return;
-      }
+  appendAIStreamBubbleStart();
+  setupStreamingAudio();
+  audioChunksB64 = [];
+  return;
+}
 
+
+      // 🔊 Handle AI audio chunks
       if (data.event === "audio_chunk") {
         handleReceivedChunk(data.data, data.seq);
         playStreamingChunk(data.data);
         return;
       }
 
+      // 💬 Handle AI final text
+      if (data.event === "final_text") {
+        removeTypingIndicator();
+        appendMessage("ai", data.data, false);  // show AI reply in chat
+        wsVoice.lastReplyText = data.data;      // store for reference
+        return;
+      }
+
+      // ✅ End of audio playback
       if (data.event === "end_of_audio") {
-        appendAIStreamBubbleFinalize();
         try {
           reconstructAndPlayFromB64(audioChunksB64);
         } catch (err) {
@@ -239,6 +344,7 @@ function startFullFlow() {
         return;
       }
 
+      // ❌ Handle errors
       if (data.event === "error") {
         appendMessage("ai", "Audio stream error: " + (data.message || ""));
         return;
@@ -257,6 +363,7 @@ function startFullFlow() {
     appendMessage("ai", "Connection error.");
   };
 }
+
 
 function stopRecording() {
   if (voiceProc) try { voiceProc.disconnect(); } catch (_) {}
@@ -326,3 +433,36 @@ document.getElementById("recordBtn").addEventListener("click", () => {
     stopRecording();
   }
 });
+
+
+function showTypingIndicator() {
+  const c = document.getElementById("chatContainer");
+  let div = document.createElement("div");
+  div.id = "typing-indicator";
+  div.dataset.sender = "ai";
+  div.className = "bg-gray-700 text-white self-start mr-auto rounded-2xl rounded-tl-md px-4 py-2 text-sm max-w-[75%] flex gap-1";
+  div.innerHTML = `<span class="dot w-2 h-2 bg-white rounded-full animate-bounce"></span>
+                   <span class="dot w-2 h-2 bg-white rounded-full animate-bounce delay-150"></span>
+                   <span class="dot w-2 h-2 bg-white rounded-full animate-bounce delay-300"></span>`;
+  c.appendChild(div);
+  c.scrollTop = c.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById("typing-indicator");
+  if (el) el.remove();
+}
+
+
+function typeWriterEffect(element, text, speed = 40) {
+  let i = 0;
+  element.textContent = ""; // clear first
+  function typing() {
+    if (i < text.length) {
+      element.textContent += text.charAt(i);
+      i++;
+      setTimeout(typing, speed);
+    }
+  }
+  typing();
+}

@@ -125,6 +125,11 @@
 .speaking {
   animation: speakingPulse 1s ease-in-out infinite;
 }
+#ai-greeting {
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.6),
+               0 0 15px rgba(180, 100, 255, 0.8);
+}
+
     
   }
   </style>
@@ -151,11 +156,15 @@
           <div id="eye-right" class="eye"></div>
         </div>
       </div>
+      <p id="ai-greeting" class="mt-4 text-3xl font-bold text-white tracking-wide">
+  Hello! I'm Anyra
+</p>
+
 
       <!-- Buttons -->
-      <div class="flex gap-6 mb-4">
+      <div class="flex gap-6 mb-4 mt-10">
         <button id="recordBtn" audioPlayer class="hover:text-green-400 text-white font-bold p-2 rounded border border-green-500">
-          Start Assistant
+          Start 
         </button>
         
       </div>
@@ -167,17 +176,19 @@
 
       <!-- Audio -->
       
-      <audio id="audioPlayer" controls style="display: none;"></audio>
-       <audio id="ttsAudio" controls preload="none"></audio>
+      <audio id="audioPlayer" style="display: none;"></audio>
+      <audio id="ttsAudio" style="display: none;"></audio>
+
 
     </div>
 
     <!-- RIGHT FRAME (Hidden Initially) -->
     <div id="rightFrame" class="pt-[100px] pb-[100px] overflow-y-auto hidden">
-      <div id="chatContainer" 
-        class="p-6 space-y-3 h-[400px] w-[550px] overflow-y-auto 
-               bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg shadow-lg">
+      <div id="chatContainer"
+        class="flex flex-col space-y-3 p-4 h-[400px] w-[550px] overflow-y-auto
+               bg-gradient-to-br from-gray-700/50 to-gray-800/50 rounded-xl shadow-lg">
       </div>
+
 
     </div>
 

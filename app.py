@@ -105,6 +105,10 @@ async def ws_voice(websocket: WebSocket):
             # keep assistant reply in history
             history.append({"role": "assistant", "content": reply})
 
+            # ✅ Send AI's final text to frontend
+            await websocket.send_json({"event": "final_text", "data": reply})
+
+
             # --- Stream TTS via Murf WS and forward chunks to browser ---
             if not MURF_API_KEY:
                 await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
