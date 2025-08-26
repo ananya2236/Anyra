@@ -121,14 +121,16 @@
                     0 0 140px rgba(255, 255, 0, 0.7);
       }
     }
-
+/* 
 .speaking {
-  animation: speakingPulse 1s ease-in-out infinite;
+  animation: speakingPulse 5s ease-in-out infinite;
 }
 #ai-greeting {
   text-shadow: 0 0 8px rgba(255, 255, 255, 0.6),
                0 0 15px rgba(180, 100, 255, 0.8);
-}
+} */
+
+
 
     
   }
@@ -137,6 +139,7 @@
 
 <body class="bg-black min-h-screen flex text-white">
 
+  
   <!-- Main Container -->
   <div id="mainContainer" class="relative flex flex-col items-center justify-center w-full">
 
@@ -157,17 +160,29 @@
         </div>
       </div>
       <p id="ai-greeting" class="mt-4 text-3xl font-bold text-white tracking-wide">
-  Hello! I'm Anyra
-</p>
-
+        Hello! I'm Anyra
+      </p>
+      
+      <div class="flex items-center gap-3 mt-6">
+        <label for="personaSelect" class="text-sm text-gray-300">Agent Persona:</label>
+        <select id="personaSelect" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm">
+          <option value="futuristic-ai" selected>Futuristic AI (Default)</option>
+          <option value="pirate">Pirate 🏴‍☠️</option>
+          <option value="cowboy">Cowboy 🤠</option>
+          <option value="robot">Robot 🤖</option>
+          <option value="professor">Professor 👩‍🏫</option>
+          <option value="desi-mentor">Desi Mentor (Hinglish)</option>
+        </select>
+        <span id="personaHint" class="text-xs text-gray-400">Tip: persona affects tone + TTS.</span>
+      </div>
 
       <!-- Buttons -->
       <div class="flex gap-6 mb-4 mt-10">
         <button id="recordBtn" audioPlayer class="hover:text-green-400 text-white font-bold p-2 rounded border border-green-500">
-          Start 
+          Start
         </button>
-        
       </div>
+
 
       <!-- Upload Status -->
       <p id="uploadStatus" class="text-cyan-300 mt-4 text-center text-sm">Upload status will appear here</p>
@@ -177,7 +192,7 @@
       <!-- Audio -->
       
       <audio id="audioPlayer" style="display: none;"></audio>
-      <audio id="ttsAudio" style="display: none;"></audio>
+      <!-- <audio id="ttsAudio" style="display: none;"></audio> -->
 
 
     </div>

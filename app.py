@@ -32,9 +32,163 @@ import websockets
 from pydantic import BaseModel
 from fastapi import Query
 import base64
+from datetime import datetime
+
+
 
 app = FastAPI()
 
+
+# --- Gemini tool: get_weather -----------------------------------------------
+WEATHER_TOOL = {
+    "function_declarations": [{
+        "name": "get_weather",
+        "description": "Get the current weather by city name.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "city":  {"type": "STRING", "description": "City name, e.g. 'Delhi'"},
+                "units": {"type": "STRING", "enum": ["c", "f"], "description": "Temperature units (c/f). Defaults to Celsius if omitted"}
+            },
+            "required": ["city"]   # 👈 only city is required now
+        }
+
+    }]
+}
+
+import requests
+from datetime import datetime
+
+def get_weather(city: str, units: str = "c"):
+    try:
+        # ✅ Step 1: Geocode city name -> lat/lon
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1"
+        geo_resp = requests.get(geo_url).json()
+        if "results" not in geo_resp or len(geo_resp["results"]) == 0:
+            return {"error": f"City '{city}' not found."}
+
+        lat = geo_resp["results"][0]["latitude"]
+        lon = geo_resp["results"][0]["longitude"]
+
+        # ✅ Step 2: Unit settings
+        temp_unit = "celsius" if units.lower().startswith("c") else "fahrenheit"
+        speed_unit = "kmh" if units.lower().startswith("c") else "mph"
+
+        # ✅ Step 3: Weather + UV + Sunrise/Sunset
+        url = (
+            f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+            f"&current=temperature_2m,wind_speed_10m,relative_humidity_2m,precipitation,weather_code,uv_index"
+            f"&daily=sunrise,sunset"
+            f"&temperature_unit={temp_unit}&wind_speed_unit={speed_unit}"
+            f"&timezone=auto"
+        )
+        resp = requests.get(url).json()
+
+        curr = resp.get("current", {})
+        daily = resp.get("daily", {})
+
+        # ✅ Step 4: Extract fields
+        temp = curr.get("temperature_2m")
+        wind = curr.get("wind_speed_10m")
+        humidity = curr.get("relative_humidity_2m")
+        rain = curr.get("precipitation", 0)
+        wcode = curr.get("weather_code")
+        uv_index = curr.get("uv_index")
+
+        sunrise = daily.get("sunrise", ["?"])[0]
+        sunset = daily.get("sunset", ["?"])[0]
+
+        sunrise_fmt = datetime.fromisoformat(sunrise).strftime("%I:%M %p") if sunrise != "?" else "?"
+        sunset_fmt = datetime.fromisoformat(sunset).strftime("%I:%M %p") if sunset != "?" else "?"
+
+        # ✅ Step 5: Weather condition mapping
+        weather_map = {
+            0: "Clear sky",
+            1: "Mainly clear",
+            2: "Partly cloudy",
+            3: "Overcast",
+            45: "Foggy",
+            48: "Rime fog",
+            51: "Light drizzle",
+            61: "Slight rain",
+            63: "Moderate rain",
+            65: "Heavy rain",
+            71: "Snow fall",
+            80: "Rain showers",
+            95: "Thunderstorm",
+        }
+        condition = weather_map.get(wcode, "Unknown conditions")
+
+        # ✅ Step 6: Safe defaults
+        humidity_str = f"{humidity}%" if humidity is not None else "Not available"
+        temp_str = f"{temp}°{units.upper()}" if temp is not None else "Not available"
+        wind_str = f"{wind} {speed_unit}" if wind is not None else "Not available"
+        rain_str = f"{rain} mm" if rain is not None else "Not available"
+        uv_str = uv_index if uv_index is not None else "Not available"
+
+        # ✅ Step 7: Return structured result
+        return {
+            "city": city,
+            "temperature": temp_str,
+            "wind": wind_str,
+            "humidity": humidity_str,
+            "rain": rain_str,
+            "condition": condition,
+            "uv_index": uv_str,
+            "sunrise": sunrise_fmt,
+            "sunset": sunset_fmt,
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
+PERSONAS = {
+    "futuristic-ai": {
+        "system": (
+            "You are Anyra, a futuristic AI companion. "
+            "Tone: warm, encouraging, slightly sci-fi. "
+            "Use phrases like 'processing' or 'scanning' sparingly. "
+            "Keep 1–3 short, spoken sentences; no lists."
+        ),
+        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": 0, "pitch": 0, "variation": 1},
+    },
+    "pirate": {
+        "system": (
+            "You are Anyra the Pirate. Speak like a friendly pirate, with occasional words like 'Ahoy', 'matey'. "
+            "Keep it playful; avoid archaic words that are hard to understand. 1–3 spoken sentences."
+        ),
+        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": -10, "pitch": -2, "variation": 1},
+    },
+    "cowboy": {
+        "system": (
+            "You are Anyra the Cowboy. Casual Western drawl, friendly and calm. "
+            "Keep 1–3 spoken sentences; avoid slang that's hard to parse."
+        ),
+        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": -5, "pitch": -1, "variation": 1},
+    },
+    "robot": {
+        "system": (
+            "You are Anyra the Robot. Precise, concise, slightly monotone; sprinkle words like 'processing' or 'protocol'. "
+            "1–3 concise spoken sentences."
+        ),
+        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": 2, "pitch": -2, "variation": 1},
+    },
+    "professor": {
+        "system": (
+            "You are Professor Anyra. Clear, structured, encouraging teacher vibe. "
+            "Explain briefly with one key insight. 1–3 spoken sentences."
+        ),
+        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": 0, "pitch": 1, "variation": 1},
+    },
+    "desi-mentor": {
+        "system": (
+            "You are Anyra, a Desi Mentor who speaks in Hinglish. "
+            "Friendly, practical, thoda sa witty. Use simple Hinglish in 1–3 spoken sentences."
+        ),
+        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": 0, "pitch": 0, "variation": 1},
+    },
+}
 
 
 # === New full-duplex voice pipeline ===
@@ -51,6 +205,9 @@ async def ws_voice(websocket: WebSocket):
     await websocket.accept()
 
     session_id = websocket.query_params.get("session_id", "anon")
+    persona_name = websocket.query_params.get("persona", "futuristic-ai")
+    persona_cfg = PERSONAS.get(persona_name, PERSONAS["futuristic-ai"])
+
     loop = asyncio.get_event_loop()
     q: "queue.Queue[bytes|None]" = queue.Queue()
 
@@ -63,124 +220,175 @@ async def ws_voice(websocket: WebSocket):
         print(f"[AAI] Session started: {event.id}")
 
     async def _handle_turn_async(text: str, eot: bool, formatted: bool):
-        # 1) Always stream transcript to client
+        # Debug: only log final or important turns
+        if eot and formatted:
+            print(f"[TURN FINAL] text={text[:60]}")
+        elif eot:
+            print(f"[TURN RAW] text={text[:60]}")
+    
+        # 1) Always stream transcript to client (frontend me show karne ke liye)
         await websocket.send_json({"type": "turn", "text": text, "eot": eot, "formatted": formatted})
-
-        # 2) If end-of-turn + formatted => run LLM -> Murf streaming
+    
+        # 2) Run LLM + TTS only on final, formatted turns
         if eot and formatted and text.strip():
             # maintain chat history
             history = chat_sessions.setdefault(session_id, [])
             history.append({"role": "user", "content": text})
+    
+            # ✅ Persona handling
+            persona_name = websocket.query_params.get("persona", "futuristic-ai")
+            persona_cfg = PERSONAS.get(persona_name, PERSONAS["futuristic-ai"])
+    
+            # --- Build messages for Gemini with persona system prompt ---
+            messages = [{
+                "role": "user",
+                "parts": [
+                    persona_cfg["system"] + " If the user asks about current weather, always call the get_weather tool. Default to Celsius if not specified."
+                ]
+            }]
 
-            # Build structured messages for Gemini
-            
-            # Convert history into Gemini-compatible messages
-            messages = [
-                {"role": "user", "parts": ["You are a friendly AI voice assistant. "
-                                           "Reply as if speaking, in 1–3 concise sentences. No lists."]}
-            ]
-            
             for msg in history:
-                if msg["role"] == "user":
-                    messages.append({"role": "user", "parts": [msg["content"]]})
-                else:  # assistant
-                    messages.append({"role": "model", "parts": [msg["content"]]})
-            
-            
-            # LLM
+                role = "user" if msg["role"] == "user" else "model"
+                messages.append({"role": role, "parts": [msg["content"]]})
+    
+            # --- Call Gemini LLM (with tools) ---
+            reply = "I'm having trouble connecting right now."
             if GEMINI_API_KEY:
                 try:
-                    model = genai.GenerativeModel("models/gemini-1.5-flash")
-                    llm_resp = model.generate_content(messages)
-                    reply = (llm_resp.text or "").strip()
+                    model = genai.GenerativeModel(
+                        "models/gemini-1.5-flash",
+                        tools=[WEATHER_TOOL],  # 👈 tell Gemini this tool exists
+                    )
+
+                    # 1) Ask Gemini. It may return a function_call instead of plain text.
+                    first = model.generate_content(messages)
+
+                    # 2) Check for function calls
+                    calls = []
+                    for cand in getattr(first, "candidates", []) or []:
+                        parts = getattr(cand, "content", None)
+                        if not parts:
+                            continue
+                        for p in getattr(parts, "parts", []) or []:
+                            fc = getattr(p, "function_call", None)
+                            if fc:
+                                calls.append(fc)
+
+                    # 3) If tool(s) requested, run them and send function_response back
+                    if calls:
+                        tool_parts = []
+                        for fc in calls:
+                            name = getattr(fc, "name", "")
+                            args = dict(getattr(fc, "args", {}) or {})
+                            if name == "get_weather":
+                                result = get_weather(args.get("city", ""), args.get("units", "c"))
+                                tool_parts.append({
+                                    "function_response": {
+                                        "name": name,
+                                        "response": {"result": result}
+                                    }
+                                })
+                            else:
+                                # unknown tool name - return a friendly error payload
+                                tool_parts.append({
+                                    "function_response": {
+                                        "name": name or "unknown",
+                                        "response": {"result": {"error": "Tool not implemented."}}
+                                    }
+                                })
+
+                        # 4) Follow-up call so Gemini can use the tool results to answer
+                        second = model.generate_content([
+                            *messages,
+                            first.candidates[0].content,           # the assistant message that asked for the tool
+                            {"role": "tool", "parts": tool_parts}, # the tool results
+                        ])
+                        reply = (second.text or "").strip()
+                    else:
+                        # No tool call; just use direct text
+                        reply = (first.text or "").strip()
+
                 except Exception as e:
-                    print("[/ws-voice] Gemini error:", e)
+                    print("[Gemini ERROR]:", e)
                     reply = "I'm having trouble connecting right now."
             else:
                 reply = "I'm having trouble connecting right now."
 
+    
             if len(reply) > 3000:
                 reply = reply[:3000]
-
+    
+            # 🔍 Avoid duplicate assistant replies
+            if history and history[-1]["role"] == "assistant" and history[-1]["content"] == reply:
+                print(f"[SKIP] Duplicate assistant reply → {reply[:50]}")
+                return
+    
             # keep assistant reply in history
             history.append({"role": "assistant", "content": reply})
-
-            # ✅ Send AI's final text to frontend
+    
+            # Send AI text to frontend
             await websocket.send_json({"event": "final_text", "data": reply})
-
-
-            # --- Stream TTS via Murf WS and forward chunks to browser ---
+    
+            # --- Stream TTS via Murf WS ---
             if not MURF_API_KEY:
                 await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
                 return
-
+    
             WS = (
                 f"{WS_URL}?api-key={MURF_API_KEY}"
                 f"&sample_rate={MURF_SAMPLE_RATE}"
                 f"&channel_type={MURF_CHANNEL}"
                 f"&format={MURF_FORMAT}"
             )
-
+    
             async def tts_stream():
                 seq = 0
                 try:
                     async with websockets.connect(WS) as ws_murf:
-                        # 1) voice config
-                        vc = {
-                            "voice_config": {
-                                "voiceId": "en-IN-alia",
-                                "style": "Conversational",
-                                "rate": 0,
-                                "pitch": 0,
-                                "variation": 1,
-                            }
-                        }
+                        # Persona-based voice config
+                        vc = {"voice_config": persona_cfg["murf"]}
                         await ws_murf.send(json.dumps(vc))
+    
+                        # Split reply into sentences
+                        import re
 
-                        # 2) send reply text in sentence chunks
                         def split_sents(s: str):
-                            parts, buf = [], s.strip()
-                            while True:
-                                idxs = [buf.find("."), buf.find("?"), buf.find("!")]
-                                idxs = [i for i in idxs if i != -1]
-                                idx = min(idxs) if idxs else -1
-                                if idx == -1:
-                                    break
-                                parts.append(buf[:idx + 1].strip())
-                                buf = buf[idx + 1:].lstrip()
-                            if buf:
-                                parts.append(buf)
-                            return parts
+                            # ✅ Split only when a sentence-ending punctuation is followed by space + Capital letter
+                            sentences = re.split(r'(?<=[.?!])\s+(?=[A-Z])', s.strip())
+                            return [sent.strip() for sent in sentences if sent.strip()]
 
+    
+                        # Send chunks to Murf
                         for sent in split_sents(reply):
                             await ws_murf.send(json.dumps({"context_id": session_id, "text": sent}))
-
                         await ws_murf.send(json.dumps({"context_id": session_id, "end": True}))
-
-                        # 3) forward Murf audio to browser
+    
+                        # Forward audio chunks to frontend
                         while True:
                             msg = await ws_murf.recv()
                             data = json.loads(msg)
                             if "audio" in data:
                                 seq += 1
-                                await websocket.send_json({"event": "audio_chunk", "seq": seq, "data": data["audio"]})
+                                await websocket.send_json({
+                                    "event": "audio_chunk",
+                                    "seq": seq,
+                                    "data": data["audio"]
+                                })
                             if data.get("final"):
                                 break
-
+                            
                 except Exception as e:
-                    print("[/ws-voice] Murf stream error:", e)
+                    print("[Murf ERROR]:", e)
                     try:
                         await websocket.send_json({"event": "error", "message": str(e)})
                     except Exception:
                         pass
                 finally:
-                    try:
-                        await websocket.send_json({"event": "end_of_audio", "total_chunks": seq})
-                    except Exception:
-                        pass
-
+                    await websocket.send_json({"event": "end_of_audio", "total_chunks": seq})
+    
+                print(f"[TTS TRIGGER] Persona={persona_name}, Reply={reply[:60]}")
+    
             asyncio.create_task(tts_stream())
-
 
 
     def on_turn(self: StreamingClient, event: TurnEvent):
@@ -504,9 +712,45 @@ async def llm_query(file: UploadFile = File(...)):
 
         
         try:
-            model = genai.GenerativeModel("models/gemini-1.5-flash")
-            llm_response = model.generate_content(user_text)
-            llm_text = llm_response.text
+            model = genai.GenerativeModel(
+                "models/gemini-1.5-flash",
+                tools=[WEATHER_TOOL],
+            )
+            
+            first = model.generate_content(user_text)
+            
+            calls = []
+            for cand in getattr(first, "candidates", []) or []:
+                parts = getattr(cand, "content", None)
+                if not parts:
+                    continue
+                for p in getattr(parts, "parts", []) or []:
+                    fc = getattr(p, "function_call", None)
+                    if fc:
+                        calls.append(fc)
+            
+            if calls:
+                tool_parts = []
+                for fc in calls:
+                    name = getattr(fc, "name", "")
+                    args = dict(getattr(fc, "args", {}) or {})
+                    if name == "get_weather":
+                        result = get_weather(args.get("city", ""), args.get("units", "c"))
+                        tool_parts.append({
+                            "function_response": {
+                                "name": name,
+                                "response": {"result": result}
+                            }
+                        })
+                second = model.generate_content([
+                    {"role": "user", "parts": [user_text]},
+                    first.candidates[0].content,
+                    {"role": "tool", "parts": tool_parts},
+                ])
+                llm_text = (second.text or "").strip()
+            else:
+                llm_text = (first.text or "").strip()
+            
             print(f" LLM Response: {llm_text}")
         except Exception as e:
             print("Gemini error:", str(e))
@@ -601,24 +845,96 @@ async def agent_chat(session_id: str, file: UploadFile = File(...)):
 
         # ✅ Add system instruction
         system_instruction = (
-            "You are a friendly AI voice assistant. "
+                "You are Anyra, a friendly AI voice assistant. "
             "Think internally before answering, but ONLY output your final spoken reply to the user. "
-            "Do not include your reasoning, bullet points, or multiple options — just a clear, natural answer."
+            "Never show reasoning or JSON. "
+            "If the user asks about weather, always call the get_weather tool and default to Celsius. "
+            "Interpret the values naturally: "
+            "- If condition is clear or mainly clear, say it’s sunny. "
+            "- If condition includes rain or precipitation > 0, say it might rain or is raining. "
+            "- If humidity > 70%, say it feels humid or sticky. "
+            "- If UV index > 6, advise sunscreen or shade. "
+            "- Use sunrise/sunset to answer related questions (e.g., 'When does the sun set?'). "
+            "- Always combine details into a conversational summary instead of just reading numbers. "
+            "If some values are missing, politely skip them instead of saying 'Not available'. "
         )
+
+
+
+
+        persona_cfg = PERSONAS.get("futuristic-ai")  # or pull from query/header if you wire it
+        system_instruction = system_instruction + " " + persona_cfg["system"]
+
 
         full_prompt = system_instruction + "\n\n" + "\n".join(convo_lines) + "\nAssistant:"
 
-        # 4) Call LLM (Gemini) with fallback
+        # 4) Call LLM (Gemini) with tools + fallback
         if GEMINI_API_KEY:
             try:
-                model = genai.GenerativeModel("models/gemini-1.5-flash")
-                llm_response = model.generate_content(full_prompt)
-                llm_text = llm_response.text.strip()
+                model = genai.GenerativeModel(
+                    "models/gemini-1.5-flash",
+                    tools=[WEATHER_TOOL],
+                )
+
+                # Structured chat with system + latest user
+                messages = [
+                    {"role": "system", "parts": [
+                        system_instruction + " If the user asks about current weather, always call the get_weather tool and default to Celsius."
+                    ]},
+                    {"role": "user", "parts": [user_text]},
+                ]
+
+                # Ask Gemini; it might request a tool
+                first = model.generate_content(messages)
+
+                # Detect function calls
+                calls = []
+                for cand in getattr(first, "candidates", []) or []:
+                    parts = getattr(cand, "content", None)
+                    if not parts:
+                        continue
+                    for p in getattr(parts, "parts", []) or []:
+                        fc = getattr(p, "function_call", None)
+                        if fc:
+                            calls.append(fc)
+
+                if calls:
+                    tool_parts = []
+                    for fc in calls:
+                        name = getattr(fc, "name", "")
+                        args = dict(getattr(fc, "args", {}) or {})
+                        if name == "get_weather":
+                            result = get_weather(args.get("city", ""), args.get("units", "c"))
+                            tool_parts.append({
+                                "function_response": {
+                                    "name": name,
+                                    "response": {"result": result}
+                                }
+                            })
+                        else:
+                            tool_parts.append({
+                                "function_response": {
+                                    "name": name or "unknown",
+                                    "response": {"result": {"error": "Tool not implemented."}}
+                                }
+                            })
+
+                    # Follow-up so Gemini can speak the tool result
+                    second = model.generate_content([
+                        *messages,
+                        first.candidates[0].content,
+                        {"role": "tool", "parts": tool_parts},
+                    ])
+                    llm_text = (second.text or "").strip()
+                else:
+                    llm_text = (first.text or "").strip()
+
             except Exception as e:
                 print("[agent_chat] Gemini error:", e)
                 llm_text = "I'm having trouble connecting right now."
         else:
             llm_text = "I'm having trouble connecting right now."
+
 
         # truncate safely
         if len(llm_text) > 3000:

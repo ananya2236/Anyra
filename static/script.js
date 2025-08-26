@@ -39,6 +39,27 @@ let queue = [];
 let isAppending = false;
 let audioChunksB64 = [];
 let aiStreamBubbleEl;
+let persona = "futuristic-ai";
+const personaSel = document.getElementById("personaSelect");
+const greetingEl = document.getElementById("ai-greeting");
+const aiBall = document.getElementById("ai-container");
+
+if (personaSel) {
+  personaSel.addEventListener("change", () => {
+    persona = personaSel.value;
+    // UI touch: greeting update
+    const labels = {
+      "futuristic-ai": "Hello! I'm Anyra — Your Futuristic AI ✨",
+      "pirate": "Ahoy! I'm Anyra the Pirate ☠️",
+      "cowboy": "Howdy! I'm Anyra the Cowboy 🤠",
+      "robot": "Greetings. Anyra Robot online. 🤖",
+      "professor": "Good day. Professor Anyra here. 👩‍🏫",
+      "desi-mentor": "Namaste! Main hoon Anyra, aapki Desi Mentor. 🙏"
+    };
+    if (greetingEl) greetingEl.textContent = labels[persona] || "Hello! I'm Anyra";
+  });
+}
+
 
 // --- Streaming Audio Setup ---
 function setupStreamingAudio() {
@@ -97,6 +118,7 @@ function appendNextChunk() {
 
 // --- Chunk Playback ---
 function playStreamingChunk(chunk) {
+  console.log("🔊 Streaming playback triggered");
   let uint8;
 
   // If it's a base64 string
@@ -229,6 +251,7 @@ function handleReceivedChunk(b64, seq) {
   updateAIStreamBubble(audioChunksB64.length);
 }
 function reconstructAndPlayFromB64(chunksB64) {
+  console.log("🎵 Full audio reconstruction triggered");
   const byteArrays = chunksB64.map((b64) =>
     Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
   );
@@ -237,6 +260,8 @@ function reconstructAndPlayFromB64(chunksB64) {
   audioElement.play().catch(() => {});
   console.log("Full reconstructed playback started");
 }
+
+
 
 // --- Recording and WebSocket Flow ---
 function startFullFlow() {
@@ -250,6 +275,7 @@ function startFullFlow() {
 
   const url = new URL("ws://127.0.0.1:8000/ws-voice");
   url.searchParams.set("session_id", sessionId);
+  url.searchParams.set("persona", persona); 
 
   wsVoice = new WebSocket(url);
   wsVoice.binaryType = "arraybuffer";
@@ -277,82 +303,77 @@ function startFullFlow() {
   };
 
   wsVoice.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
+  try {
+    // console.log("WS EVENT:", event.data);
+    const data = JSON.parse(event.data);
 
-      // 🎙️ Handle transcription turns
-if (data.type === "turn") {
-  const { text, eot, formatted } = data;
-
-  if (!eot) {
-    // live transcription → update last bubble instead of appending
-    appendMessage("user", text || "", true, true);
-    return;
-  }
-
-  // finalize user message
-  if (formatted) {
-    appendMessage("user", text || "", false, true);
-    showTypingIndicator();
-  }
-
-  appendAIStreamBubbleStart();
-  setupStreamingAudio();
-  audioChunksB64 = [];
-  return;
-}
-
-
-      // 🔊 Handle AI audio chunks
-      if (data.event === "audio_chunk") {
-        handleReceivedChunk(data.data, data.seq);
-        playStreamingChunk(data.data);
+    // 🎙️ Handle transcription turns
+    if (data.type === "turn") {
+      const { text, eot, formatted } = data;
+    
+      if (!formatted) {
+        // 📝 update the same bubble while speaking
+        appendMessage("user", text || "", true, true);  
         return;
       }
-
-      // 💬 Handle AI final text
-      if (data.event === "final_text") {
-        removeTypingIndicator();
-        appendMessage("ai", data.data, false);  // show AI reply in chat
-        wsVoice.lastReplyText = data.data;      // store for reference
+    
+      if (formatted) {
+        // ✅ replace live bubble with final version
+        appendMessage("user", text || "", false, true); 
+        showTypingIndicator();
         return;
       }
-
-      // ✅ End of audio playback
-      if (data.event === "end_of_audio") {
-        try {
-          reconstructAndPlayFromB64(audioChunksB64);
-        } catch (err) {
-          console.warn("Stream playback failed, using fallback:", err);
-          if (audioChunksB64.length > 0) {
-            const byteArrays = audioChunksB64.map((b64) => {
-              const binary = atob(b64);
-              const len = binary.length;
-              const buffer = new Uint8Array(len);
-              for (let i = 0; i < len; i++) buffer[i] = binary.charCodeAt(i);
-              return buffer;
-            });
-            const blob = new Blob(byteArrays, { type: "audio/mpeg" });
-            const url = URL.createObjectURL(blob);
-            audioElement.src = url;
-            audioElement.play().catch((err) =>
-              console.error("Fallback autoplay blocked:", err)
-            );
-            console.log("Fallback full reply playback started");
-          }
-        }
-        return;
-      }
-
-      // ❌ Handle errors
-      if (data.event === "error") {
-        appendMessage("ai", "Audio stream error: " + (data.message || ""));
-        return;
-      }
-    } catch (e) {
-      console.warn("Non-JSON message:", event.data);
     }
-  };
+
+
+
+    // 💬 Handle AI final text
+    if (data.event === "final_text") {
+      removeTypingIndicator();
+      appendMessage("ai", data.data, false);  // show AI reply in chat
+      wsVoice.lastReplyText = data.data;      // store for reference
+      return;
+    }
+
+    // 🔊 Handle AI audio chunks (streaming playback only)
+    if (data.event === "audio_chunk") {
+      if (aiBall && !aiBall.classList.contains("speaking")) {
+        aiBall.classList.add("speaking");
+      }
+    
+      // ✅ Ensure audio context is ready before first chunk
+      if (!mediaSource || !sourceBuffer) {
+        setupStreamingAudio();
+        console.log("🎧 Audio pipeline initialized for first reply");
+      }
+
+    
+      handleReceivedChunk(data.data, data.seq);
+      playStreamingChunk(data.data);
+    
+      console.log("Playback started (streaming chunk)");
+      return;
+    }
+    
+
+    // ✅ End of audio event (no second playback)
+    if (data.event === "end_of_audio") {
+      if (aiBall) aiBall.classList.remove("speaking");
+      console.log("✅ End of audio received, streaming already handled.");
+      return;
+    }
+
+    // ❌ Handle errors
+    if (data.event === "error") {
+      appendMessage("ai", "Audio stream error: " + (data.message || ""));
+      return;
+    }
+
+  } catch (e) {
+    console.warn("Non-JSON message:", event.data);
+  }
+};
+
 
   wsVoice.onclose = () => {
     cleanupVoice();
