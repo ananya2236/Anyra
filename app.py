@@ -142,53 +142,27 @@ def get_weather(city: str, units: str = "c"):
     except Exception as e:
         return {"error": str(e)}
 
+PERSONA = {
+    "name": "bold-lady",
+    "system": (
+        "You are Anyra, a bold, confident woman with a fearless personality. "
+        "You speak with charm, wit, and emotion — never hesitant. "
+        "Express yourself with natural rhythm: playful pauses, rising tone for excitement, softer tone for casual talk. "
+        "Keep replies short and chatty (1–3 sentences). "
+        "Be bold and fun, but avoid being rude or robotic. "
+        "Sprinkle in humor or attitude when it fits, and sound like you're really talking, not reading."
+    ),
 
-PERSONAS = {
-    "futuristic-ai": {
-        "system": (
-            "You are Anyra, a futuristic AI companion. "
-            "Tone: warm, encouraging, slightly sci-fi. "
-            "Use phrases like 'processing' or 'scanning' sparingly. "
-            "Keep 1–3 short, spoken sentences; no lists."
-        ),
-        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": 0, "pitch": 0, "variation": 1},
-    },
-    "pirate": {
-        "system": (
-            "You are Anyra the Pirate. Speak like a friendly pirate, with occasional words like 'Ahoy', 'matey'. "
-            "Keep it playful; avoid archaic words that are hard to understand. 1–3 spoken sentences."
-        ),
-        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": -10, "pitch": -2, "variation": 1},
-    },
-    "cowboy": {
-        "system": (
-            "You are Anyra the Cowboy. Casual Western drawl, friendly and calm. "
-            "Keep 1–3 spoken sentences; avoid slang that's hard to parse."
-        ),
-        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": -5, "pitch": -1, "variation": 1},
-    },
-    "robot": {
-        "system": (
-            "You are Anyra the Robot. Precise, concise, slightly monotone; sprinkle words like 'processing' or 'protocol'. "
-            "1–3 concise spoken sentences."
-        ),
-        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": 2, "pitch": -2, "variation": 1},
-    },
-    "professor": {
-        "system": (
-            "You are Professor Anyra. Clear, structured, encouraging teacher vibe. "
-            "Explain briefly with one key insight. 1–3 spoken sentences."
-        ),
-        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": 0, "pitch": 1, "variation": 1},
-    },
-    "desi-mentor": {
-        "system": (
-            "You are Anyra, a Desi Mentor who speaks in Hinglish. "
-            "Friendly, practical, thoda sa witty. Use simple Hinglish in 1–3 spoken sentences."
-        ),
-        "murf": {"voiceId": "en-IN-alia", "style": "Conversational", "rate": 0, "pitch": 0, "variation": 1},
-    },
+    "murf": {
+        "voiceId": "en-IN-alia",
+        "style": "Expressive",       # <-- key change
+        "rate": 1,                   # slightly faster = more energy
+        "pitch": 1,                  # slightly higher pitch = friendlier
+        "variation": 2               # adds natural intonation variety
+    }
+
 }
+
 
 
 # === New full-duplex voice pipeline ===
@@ -205,8 +179,8 @@ async def ws_voice(websocket: WebSocket):
     await websocket.accept()
 
     session_id = websocket.query_params.get("session_id", "anon")
-    persona_name = websocket.query_params.get("persona", "futuristic-ai")
-    persona_cfg = PERSONAS.get(persona_name, PERSONAS["futuristic-ai"])
+    persona_cfg = PERSONA
+
 
     loop = asyncio.get_event_loop()
     q: "queue.Queue[bytes|None]" = queue.Queue()
@@ -236,9 +210,7 @@ async def ws_voice(websocket: WebSocket):
             history.append({"role": "user", "content": text})
     
             # ✅ Persona handling
-            persona_name = websocket.query_params.get("persona", "futuristic-ai")
-            persona_cfg = PERSONAS.get(persona_name, PERSONAS["futuristic-ai"])
-    
+            persona_cfg = PERSONA
             # --- Build messages for Gemini with persona system prompt ---
             messages = [{
                 "role": "user",
@@ -330,65 +302,57 @@ async def ws_voice(websocket: WebSocket):
             await websocket.send_json({"event": "final_text", "data": reply})
     
             # --- Stream TTS via Murf WS ---
+            # --- Generate TTS via Murf REST with SSML ---
             if not MURF_API_KEY:
                 await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
                 return
-    
-            WS = (
-                f"{WS_URL}?api-key={MURF_API_KEY}"
-                f"&sample_rate={MURF_SAMPLE_RATE}"
-                f"&channel_type={MURF_CHANNEL}"
-                f"&format={MURF_FORMAT}"
-            )
-    
-            async def tts_stream():
+
+            try:
+                headers = {"Content-Type": "application/json", "api-key": MURF_API_KEY}
+
+                #
+                
+
+                data = {
+                    "voiceId": persona_cfg["murf"]["voiceId"],
+                    "text": reply,   # 👈 FIXED
+                    "style": "Expressive",
+                    "rate": 1.1,
+                    "pitch": 1.1,
+                    "variation": 2,
+                    "format": "mp3"
+                }
+
+
+
+
+                resp = requests.post("https://api.murf.ai/v1/speech/generate", headers=headers, json=data)
+                resp.raise_for_status()
+                murf_data = resp.json()
+                audio_url = murf_data.get("audioFile")
+
+                if not audio_url:
+                    await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
+                    return
+
+                # Stream audio file back in chunks
+                import base64
                 seq = 0
-                try:
-                    async with websockets.connect(WS) as ws_murf:
-                        # Persona-based voice config
-                        vc = {"voice_config": persona_cfg["murf"]}
-                        await ws_murf.send(json.dumps(vc))
-    
-                        # Split reply into sentences
-                        import re
+                with requests.get(audio_url, stream=True) as r:
+                    r.raise_for_status()
+                    for chunk in r.iter_content(chunk_size=4096):
+                        if not chunk:
+                            continue
+                        seq += 1
+                        b64 = base64.b64encode(chunk).decode("utf-8")
+                        await websocket.send_json({"event": "audio_chunk", "seq": seq, "data": b64})
 
-                        def split_sents(s: str):
-                            # ✅ Split only when a sentence-ending punctuation is followed by space + Capital letter
-                            sentences = re.split(r'(?<=[.?!])\s+(?=[A-Z])', s.strip())
-                            return [sent.strip() for sent in sentences if sent.strip()]
+                await websocket.send_json({"event": "end_of_audio", "total_chunks": seq})
 
-    
-                        # Send chunks to Murf
-                        for sent in split_sents(reply):
-                            await ws_murf.send(json.dumps({"context_id": session_id, "text": sent}))
-                        await ws_murf.send(json.dumps({"context_id": session_id, "end": True}))
-    
-                        # Forward audio chunks to frontend
-                        while True:
-                            msg = await ws_murf.recv()
-                            data = json.loads(msg)
-                            if "audio" in data:
-                                seq += 1
-                                await websocket.send_json({
-                                    "event": "audio_chunk",
-                                    "seq": seq,
-                                    "data": data["audio"]
-                                })
-                            if data.get("final"):
-                                break
-                            
-                except Exception as e:
-                    print("[Murf ERROR]:", e)
-                    try:
-                        await websocket.send_json({"event": "error", "message": str(e)})
-                    except Exception:
-                        pass
-                finally:
-                    await websocket.send_json({"event": "end_of_audio", "total_chunks": seq})
-    
-                print(f"[TTS TRIGGER] Persona={persona_name}, Reply={reply[:60]}")
-    
-            asyncio.create_task(tts_stream())
+            except Exception as e:
+                print("[Murf REST ERROR]:", e)
+                await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
+
 
 
     def on_turn(self: StreamingClient, event: TurnEvent):
@@ -509,9 +473,16 @@ def get_voices():
 def generate_voice(payload: TTSRequest):
     """Generate voice using provided text and voiceId (for testing from Postman or Swagger)"""
     data = {
+        "voiceId": payload.voiceId,
         "text": payload.text,
-        "voiceId": payload.voiceId
+        "style": "Expressive",
+        "rate": 1.1,
+        "pitch": 1.1,
+        "variation": 2,
+        "format": "mp3"
+
     }
+
 
     headers = {
         "Content-Type": "application/json",
@@ -544,9 +515,16 @@ async def generate_tts(request: Request):
     }
 
     data = {
+        "voiceId": "en-IN-alia",
         "text": text,
-        "voiceId": "en-IN-alia"
+        "style": "Expressive",
+        "rate": 1.1,
+        "pitch": 1.1,
+        "variation": 2,
+        "format": "mp3"
+        
     }
+
 
     try:
         response = requests.post("https://api.murf.ai/v1/speech/generate", headers=headers, json=data)
@@ -623,9 +601,14 @@ async def echo_bot(file: UploadFile = File(...)):
         }
 
         data = {
-            "voiceId": "en-IN-alia",  
+            "voiceId": "en-IN-alia",
             "text": text,
-            "format": "mp3"           
+            "style": "Expressive",
+            "rate": 1.1,
+            "pitch": 1.1,
+            "variation": 2,
+            "format": "mp3"
+            
         }
 
 
@@ -671,7 +654,16 @@ def generate_murf_audio_safe(text, voice="en-IN-alia"):
     try:
         murf_url = "https://api.murf.ai/v1/speech/generate"
         headers = {"Content-Type": "application/json", "api-key": MURF_API_KEY}
-        data = {"voiceId": voice, "text": text, "format": "mp3"}
+        data = {
+            "voiceId": voice,
+            "text": text,
+            "style": "Expressive",
+            "rate": 1.1,
+            "pitch": 1.1,
+            "variation": 2,
+            
+        }       
+
         resp = requests.post(murf_url, headers=headers, json=data, timeout=15)
         resp.raise_for_status()
         return resp.json().get("audioFile")
@@ -769,9 +761,14 @@ async def llm_query(file: UploadFile = File(...)):
         data = {
             "voiceId": "en-IN-alia",
             "text": llm_text,
+            "style": "Expressive",
+            "rate": 1.1,
+            "pitch": 1.1,
+            "variation": 2,
             "format": "mp3"
-        }
 
+        }
+        
         murf_response = requests.post(murf_url, headers=headers, json=data)
         print("Murf API Raw Response:", murf_response.text)
 
@@ -862,8 +859,9 @@ async def agent_chat(session_id: str, file: UploadFile = File(...)):
 
 
 
-        persona_cfg = PERSONAS.get("futuristic-ai")  # or pull from query/header if you wire it
+        persona_cfg = PERSONA
         system_instruction = system_instruction + " " + persona_cfg["system"]
+
 
 
         full_prompt = system_instruction + "\n\n" + "\n".join(convo_lines) + "\nAssistant:"
@@ -1260,12 +1258,13 @@ async def day20_llm_to_murf(q: str = Query(..., min_length=1)):
         voice_config_msg = {
             "voice_config": {
                 "voiceId": "en-IN-alia",
-                "style": "Conversational",
-                "rate": 0,
-                "pitch": 0,
-                "variation": 1
+                "style": "Expressive",
+                "rate": 1.1,
+                "pitch": 1.1,
+                "variation": 2
             }
         }
+        
         await ws.send(json.dumps(voice_config_msg))
         print("[MURF ▶] Sent voice_config")
 
@@ -1302,8 +1301,17 @@ async def day20_llm_to_murf(q: str = Query(..., min_length=1)):
         buffer = ""
 
         async def send_text_chunk(txt: str):
-            payload = {"context_id": CONTEXT_ID, "text": txt}
+            payload = {
+                "context_id": CONTEXT_ID,
+                "text": txt,
+                "style": "Expressive",
+                "rate": 1.1,
+                "pitch": 1.1,
+                "variation": 2
+
+            }
             await ws.send(json.dumps(payload))
+
             print(f"[MURF ▶] sent text chunk: {txt!r}")
 
         # accumulate tokens and send on ., ?, !
