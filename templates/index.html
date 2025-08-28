@@ -145,9 +145,70 @@
 
     <!-- Show/Hide Chat Button (Top Right) -->
     <button id="chatToggleBtn" onclick="toggleChat()" 
-            class="absolute top-6 right-6 hover:text-pink-400 text-white font-bold p-2 rounded border border-pink-500 z-10">
-      Show Chat
+        class="absolute top-6 right-16 hover:text-pink-400 text-pink-500 font-bold p-2 z-10">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" 
+           stroke-width="1.5" stroke="currentColor" class="size-6">
+        <path stroke-linecap="round" stroke-linejoin="round" 
+              d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 
+                 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133
+                 a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379
+                 c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995
+                 -2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175
+                 -7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+      </svg>
     </button>
+
+
+    <!-- Settings Button -->
+<button id="settingsBtn" 
+        class="absolute top-6 right-6 hover:text-pink-400 text-pink-500 font-bold p-2 z-10">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" 
+       stroke-width="1.5" stroke="currentColor" 
+       class="size-6 text-cyan-500 hover:text-cyan-400 font-bold">
+    <path stroke-linecap="round" stroke-linejoin="round" 
+          d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 
+             1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 
+             1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 
+             2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 
+             7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 
+             1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 
+             6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 
+             1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 
+             6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 
+             1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 
+             .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 
+             6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 
+             1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 
+             1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+  </svg>
+</button>
+
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-20">
+  <div class="bg-gray-900 p-6 rounded-2xl w-96 shadow-lg">
+    <h2 class="text-xl font-bold mb-4">API Key Configuration</h2>
+
+    <label class="block mb-2 text-sm">Murf API Key</label>
+    <input id="murfKeyInput" type="text" placeholder="Enter Murf API Key"
+           class="w-full mb-4 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white"/>
+
+    <label class="block mb-2 text-sm">AssemblyAI API Key</label>
+    <input id="aaiKeyInput" type="text" placeholder="Enter AssemblyAI Key"
+           class="w-full mb-4 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white"/>
+
+    <label class="block mb-2 text-sm">Gemini API Key</label>
+    <input id="geminiKeyInput" type="text" placeholder="Enter Gemini Key"
+           class="w-full mb-6 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white"/>
+
+    <div class="flex justify-end gap-4">
+      <button id="closeModal" class="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600">Cancel</button>
+      <button id="saveKeysBtn" class="px-4 py-2 rounded bg-cyan-600 hover:bg-cyan-500">Save</button>
+    </div>
+  </div>
+</div>
+
 
     <!-- LEFT FRAME -->
     <div id="leftFrame" class="flex flex-col items-center justify-start pt-[10px] w-full transition-all duration-500">
@@ -216,21 +277,41 @@
     if (rightFrame.classList.contains("hidden")) {
         // Switch to side-by-side layout
         main.classList.remove("flex-col", "items-center", "justify-center");
-        main.classList.add("flex-row", "items-center", "justify-center"); // <-- added items-center
+        main.classList.add("flex-row", "items-start");
         leftFrame.classList.add("w-1/2");
         leftFrame.classList.remove("w-full");
         rightFrame.classList.remove("hidden");
         rightFrame.classList.add("w-1/2");
-        btn.textContent = "Hide Chat";
+
+        // Change button icon to "close"
+        btn.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+               stroke-width="1.5" stroke="currentColor" class="size-6 text-pink-500 hover:text-pink-400">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>`;
     } else {
         // Switch back to centered layout
-        main.classList.remove("flex-row", "items-center", "justify-center");
+        main.classList.remove("flex-row", "items-start");
         main.classList.add("flex-col", "items-center", "justify-center");
         leftFrame.classList.remove("w-1/2");
         leftFrame.classList.add("w-full");
         rightFrame.classList.add("hidden");
-        btn.textContent = "Show Chat";
+    
+        // Change button icon back to "chat bubble"
+        btn.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+               stroke-width="1.5" stroke="currentColor" class="size-6 text-pink-500 hover:text-pink-400">
+            <path stroke-linecap="round" stroke-linejoin="round" 
+                  d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 
+                     2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 
+                     21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 
+                     48.172 48.172 0 0 0 3.423-.379c1.584-.233 
+                     2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 
+                     48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 
+                     3.746 2.25 5.14 2.25 6.741v6.018Z" />
+          </svg>`;
     }
+
 
     }
   </script>

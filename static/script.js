@@ -116,9 +116,11 @@ function appendNextChunk() {
   }
 }
 
+let isStreaming = false;
+
 // --- Chunk Playback ---
 function playStreamingChunk(chunk) {
-  console.log("🔊 Streaming playback triggered");
+  // console.log("🔊 Streaming playback triggered");
   let uint8;
 
   // If it's a base64 string
@@ -277,6 +279,15 @@ function startFullFlow() {
   url.searchParams.set("session_id", sessionId);
   url.searchParams.set("persona", persona); 
 
+  const murfKey = localStorage.getItem("MURF_API_KEY");
+  const aaiKey = localStorage.getItem("ASSEMBLYAI_API_KEY");
+  const geminiKey = localStorage.getItem("GEMINI_API_KEY");
+
+  if (murfKey) url.searchParams.set("murf_key", murfKey);
+  if (aaiKey) url.searchParams.set("aai_key", aaiKey);
+  if (geminiKey) url.searchParams.set("gemini_key", geminiKey);
+
+
   const cityEl = document.getElementById("cityInput");
   const city = cityEl && cityEl.value ? cityEl.value.trim() : "";
   if (city) {
@@ -347,24 +358,37 @@ function startFullFlow() {
     }
 
     // 🔊 Handle AI audio chunks (streaming playback only)
+      
     if (data.event === "audio_chunk") {
       if (aiBall && !aiBall.classList.contains("speaking")) {
         aiBall.classList.add("speaking");
       }
     
-      // ✅ Ensure audio context is ready before first chunk
       if (!mediaSource || !sourceBuffer) {
         setupStreamingAudio();
         console.log("🎧 Audio pipeline initialized for first reply");
       }
-
     
       handleReceivedChunk(data.data, data.seq);
       playStreamingChunk(data.data);
     
-      console.log("Playback started (streaming chunk)");
+      // ✅ Log only once per sequence
+      if (!isStreaming) {
+        console.log("🔊 Streaming playback started...");
+        isStreaming = true;
+      }
       return;
     }
+    
+    if (data.event === "end_of_audio") {
+      if (aiBall) aiBall.classList.remove("speaking");
+      if (isStreaming) {
+        console.log("✅ End of audio received, streaming complete.");
+        isStreaming = false;
+      }
+      return;
+    }
+    
     
 
     // ✅ End of audio event (no second playback)
@@ -503,4 +527,27 @@ function typeWriterEffect(element, text, speed = 40) {
 window.addEventListener("DOMContentLoaded", () => {
   const cityEl = document.getElementById("cityInput");
   if (cityEl) cityEl.value = localStorage.getItem("anyra_city") || "";
+});
+
+
+// --- Settings Modal Logic ---
+const settingsBtn = document.getElementById("settingsBtn");
+const settingsModal = document.getElementById("settingsModal");
+const closeModal = document.getElementById("closeModal");
+const saveKeysBtn = document.getElementById("saveKeysBtn");
+
+settingsBtn.addEventListener("click", () => settingsModal.classList.remove("hidden"));
+closeModal.addEventListener("click", () => settingsModal.classList.add("hidden"));
+
+saveKeysBtn.addEventListener("click", () => {
+  const murfKey = document.getElementById("murfKeyInput").value.trim();
+  const aaiKey = document.getElementById("aaiKeyInput").value.trim();
+  const geminiKey = document.getElementById("geminiKeyInput").value.trim();
+
+  if (murfKey) localStorage.setItem("MURF_API_KEY", murfKey);
+  if (aaiKey) localStorage.setItem("ASSEMBLYAI_API_KEY", aaiKey);
+  if (geminiKey) localStorage.setItem("GEMINI_API_KEY", geminiKey);
+
+  alert("✅ API keys saved!");
+  settingsModal.classList.add("hidden");
 });

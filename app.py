@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, HTMLResponse
+# --- imports  ---
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, WebSocket
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -8,37 +9,44 @@ import google.generativeai as genai
 from tempfile import NamedTemporaryFile
 from dotenv import load_dotenv
 from starlette.websockets import WebSocketDisconnect
-from fastapi import UploadFile, File, FastAPI
-import google.generativeai as genai
-from pydantic import BaseModel
 from pathlib import Path
-from fastapi import WebSocket, WebSocketDisconnect
-import assemblyai as aai
-import requests
-import time
-import os
-import os, asyncio, threading, queue
 import assemblyai as aai
 from assemblyai.streaming.v3 import (
     StreamingClient, StreamingClientOptions, StreamingEvents,
     StreamingParameters, BeginEvent, TerminationEvent, TurnEvent, StreamingError
 )
-# --- imports near the top ---
-from fastapi.responses import StreamingResponse
-import asyncio, json
-import websockets 
-
-# --- NEW: Streaming LLM endpoint ---
-from pydantic import BaseModel
-from fastapi import Query
-import base64
+import requests, time, os, asyncio, threading, queue, json, websockets, base64, uuid, re
 from datetime import datetime
-import re
+from fastapi import Query
 
 
-
+# Stores chat history for each session
+conversation_history = {}
 
 app = FastAPI()
+
+# load environment now so handlers can use keys
+load_dotenv()
+MURF_API_KEY = os.getenv("MURF_API_KEY")
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# configure Gemini client if we have a key
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+    except Exception as e:
+        print("Warning: failed to configure genai:", e)
+        GEMINI_API_KEY = None
+else:
+    print("Warning: GEMINI_API_KEY not set. LLM calls will use fallback text.")
+
+
+# streams directory used by ws_audio
+STREAMS_DIR = Path("streams")
+STREAMS_DIR.mkdir(exist_ok=True)
+
+
 
 
 # --- Gemini tool: get_weather -----------------------------------------------
@@ -58,8 +66,7 @@ WEATHER_TOOL = {
     }]
 }
 
-import requests
-from datetime import datetime
+
 
 def get_weather(city: str, units: str = "c"):
     try:
@@ -228,9 +235,17 @@ PERSONA = {
 
 
 
+
 # === New full-duplex voice pipeline ===
 @app.websocket("/ws-voice")
 async def ws_voice(websocket: WebSocket):
+
+    session_id = websocket.query_params.get("session_id") or str(uuid.uuid4())
+
+    if session_id not in conversation_history:
+        conversation_history[session_id] = []
+
+
     """
     1) Receive 16 kHz PCM16 bytes from the browser (same as /ws-stt).
     2) Stream them to AssemblyAI; send back interim + final transcripts:
@@ -241,7 +256,25 @@ async def ws_voice(websocket: WebSocket):
     """
     await websocket.accept()
 
-    session_id = websocket.query_params.get("session_id", "anon")
+    # 🔑 Load API keys from frontend (query params) or fallback to .env
+    murf_key = websocket.query_params.get("murf_key") or os.getenv("MURF_API_KEY")
+    aai_key = websocket.query_params.get("aai_key") or os.getenv("ASSEMBLYAI_API_KEY")
+    gemini_key = websocket.query_params.get("gemini_key") or os.getenv("GEMINI_API_KEY")
+
+    # 🚨 Fail early if Murf key is missing
+    if not murf_key:
+        await websocket.send_json({"event": "error", "message": "Murf API key missing"})
+        await websocket.close()
+        return
+
+    # Configure Gemini dynamically if key provided
+    if gemini_key:
+        try:
+            genai.configure(api_key=gemini_key)
+        except Exception:
+            print("⚠️ Gemini key invalid")
+
+    # Session + persona (use earlier session_id)
     user_city = websocket.query_params.get("city")
     persona_cfg = PERSONA
 
@@ -253,40 +286,62 @@ async def ws_voice(websocket: WebSocket):
     def ws_send_json(obj):
         asyncio.run_coroutine_threadsafe(websocket.send_json(obj), loop)
 
-    # --- AAI event handlers (same spirit as /ws-stt) ---
+    # --- AAI event handlers ---
     def on_begin(self: StreamingClient, event: BeginEvent):
         print(f"[AAI] Session started: {event.id}")
 
     async def _handle_turn_async(text: str, eot: bool, formatted: bool):
-        # Debug: only log final or important turns
+        # Debugging print for final turns
         if eot and formatted:
             print(f"[TURN FINAL] text={text[:60]}")
-        elif eot:
-            print(f"[TURN RAW] text={text[:60]}")
-    
-        # 1) Always stream transcript to client (frontend me show karne ke liye)
-        await websocket.send_json({"type": "turn", "text": text, "eot": eot, "formatted": formatted})
-        # 🩺 Health skill: if symptom detected, reply with context-aware advice
+
+        # Always stream interim transcript to frontend
+        await websocket.send_json({
+            "type": "turn",
+            "text": text,
+            "eot": eot,
+            "formatted": formatted
+        })
+
+        # Only react when we have a final formatted turn with text
+        if not (eot and formatted and text and text.strip()):
+            return
+
+        # --- Memory: save user message ---
+        conversation_history.setdefault(session_id, []).append({"role": "user", "content": text})
+
+        # --- Trim memory to keep things small ---
+        MAX_MESSAGES = 20
+        if len(conversation_history[session_id]) > MAX_MESSAGES:
+            conversation_history[session_id] = conversation_history[session_id][-MAX_MESSAGES:]
+
+        # --- Health-check skill (fast path) ---
         sym = detect_symptom(text or "")
-        if eot and formatted and sym:
+        if sym:
             wx = get_weather(user_city, "c") if user_city else None
             reply = build_health_advice(sym, wx)
-            history = chat_sessions.setdefault(session_id, [])
-            history.append({"role": "user", "content": text})
-            history.append({"role": "assistant", "content": reply})
 
-            # send text now
+            # Save assistant reply to memory
+            conversation_history[session_id].append({"role": "assistant", "content": reply})
+
+            # send text to client
             await websocket.send_json({"event": "final_text", "data": reply})
 
-            # stream TTS via your existing Murf flow
-            if not MURF_API_KEY:
+            # generate and stream TTS if possible
+            if not murf_key:
                 await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
                 return
+
             try:
-                headers = {"Content-Type": "application/json", "api-key": MURF_API_KEY}
+                headers = {"Content-Type": "application/json", "api-key": murf_key}
                 data = {
                     "voiceId": PERSONA["murf"]["voiceId"],
-                    "text": reply, "style": "Expressive", "rate": 1.1, "pitch": 1.1, "variation": 2, "format": "mp3"
+                    "text": reply,
+                    "style": "Expressive",
+                    "rate": 1.1,
+                    "pitch": 1.1,
+                    "variation": 2,
+                    "format": "mp3"
                 }
                 resp = requests.post("https://api.murf.ai/v1/speech/generate", headers=headers, json=data)
                 resp.raise_for_status()
@@ -294,156 +349,7 @@ async def ws_voice(websocket: WebSocket):
                 if not audio_url:
                     await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
                     return
-                import base64
-                seq = 0
-                with requests.get(audio_url, stream=True) as r:
-                    r.raise_for_status()
-                    for chunk in r.iter_content(chunk_size=4096):
-                        if not chunk: continue
-                        seq += 1
-                        b64 = base64.b64encode(chunk).decode("utf-8")
-                        await websocket.send_json({"event":"audio_chunk","seq":seq,"data":b64})
-                await websocket.send_json({"event":"end_of_audio","total_chunks":seq})
-            except Exception as e:
-                print("[Murf REST ERROR health]:", e)
-                await websocket.send_json({"event":"end_of_audio","total_chunks":0})
-            return  # ✅ don't fall through to Gemini for this turn
 
-    
-        # 2) Run LLM + TTS only on final, formatted turns
-        if eot and formatted and text.strip():
-            # maintain chat history
-            history = chat_sessions.setdefault(session_id, [])
-            history.append({"role": "user", "content": text})
-    
-            # ✅ Persona handling
-            persona_cfg = PERSONA
-            # --- Build messages for Gemini with persona system prompt ---
-            messages = [{
-                "role": "user",
-                "parts": [
-                    persona_cfg["system"] + " If the user asks about current weather, always call the get_weather tool. Default to Celsius if not specified."
-                ]
-            }]
-
-            for msg in history:
-                role = "user" if msg["role"] == "user" else "model"
-                messages.append({"role": role, "parts": [msg["content"]]})
-    
-            # --- Call Gemini LLM (with tools) ---
-            reply = "I'm having trouble connecting right now."
-            if GEMINI_API_KEY:
-                try:
-                    model = genai.GenerativeModel(
-                        "models/gemini-1.5-flash",
-                        tools=[WEATHER_TOOL],  # 👈 tell Gemini this tool exists
-                    )
-
-                    # 1) Ask Gemini. It may return a function_call instead of plain text.
-                    first = model.generate_content(messages)
-
-                    # 2) Check for function calls
-                    calls = []
-                    for cand in getattr(first, "candidates", []) or []:
-                        parts = getattr(cand, "content", None)
-                        if not parts:
-                            continue
-                        for p in getattr(parts, "parts", []) or []:
-                            fc = getattr(p, "function_call", None)
-                            if fc:
-                                calls.append(fc)
-
-                    # 3) If tool(s) requested, run them and send function_response back
-                    if calls:
-                        tool_parts = []
-                        for fc in calls:
-                            name = getattr(fc, "name", "")
-                            args = dict(getattr(fc, "args", {}) or {})
-                            if name == "get_weather":
-                                result = get_weather(args.get("city", ""), args.get("units", "c"))
-                                tool_parts.append({
-                                    "function_response": {
-                                        "name": name,
-                                        "response": {"result": result}
-                                    }
-                                })
-                            else:
-                                # unknown tool name - return a friendly error payload
-                                tool_parts.append({
-                                    "function_response": {
-                                        "name": name or "unknown",
-                                        "response": {"result": {"error": "Tool not implemented."}}
-                                    }
-                                })
-
-                        # 4) Follow-up call so Gemini can use the tool results to answer
-                        second = model.generate_content([
-                            *messages,
-                            first.candidates[0].content,           # the assistant message that asked for the tool
-                            {"role": "tool", "parts": tool_parts}, # the tool results
-                        ])
-                        reply = (second.text or "").strip()
-                    else:
-                        # No tool call; just use direct text
-                        reply = (first.text or "").strip()
-
-                except Exception as e:
-                    print("[Gemini ERROR]:", e)
-                    reply = "I'm having trouble connecting right now."
-            else:
-                reply = "I'm having trouble connecting right now."
-
-    
-            if len(reply) > 3000:
-                reply = reply[:3000]
-    
-            # 🔍 Avoid duplicate assistant replies
-            if history and history[-1]["role"] == "assistant" and history[-1]["content"] == reply:
-                print(f"[SKIP] Duplicate assistant reply → {reply[:50]}")
-                return
-    
-            # keep assistant reply in history
-            history.append({"role": "assistant", "content": reply})
-    
-            # Send AI text to frontend
-            await websocket.send_json({"event": "final_text", "data": reply})
-    
-            # --- Stream TTS via Murf WS ---
-            # --- Generate TTS via Murf REST with SSML ---
-            if not MURF_API_KEY:
-                await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
-                return
-
-            try:
-                headers = {"Content-Type": "application/json", "api-key": MURF_API_KEY}
-
-                #
-                
-
-                data = {
-                    "voiceId": persona_cfg["murf"]["voiceId"],
-                    "text": reply,   # 👈 FIXED
-                    "style": "Expressive",
-                    "rate": 1.1,
-                    "pitch": 1.1,
-                    "variation": 2,
-                    "format": "mp3"
-                }
-
-
-
-
-                resp = requests.post("https://api.murf.ai/v1/speech/generate", headers=headers, json=data)
-                resp.raise_for_status()
-                murf_data = resp.json()
-                audio_url = murf_data.get("audioFile")
-
-                if not audio_url:
-                    await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
-                    return
-
-                # Stream audio file back in chunks
-                import base64
                 seq = 0
                 with requests.get(audio_url, stream=True) as r:
                     r.raise_for_status()
@@ -453,17 +359,122 @@ async def ws_voice(websocket: WebSocket):
                         seq += 1
                         b64 = base64.b64encode(chunk).decode("utf-8")
                         await websocket.send_json({"event": "audio_chunk", "seq": seq, "data": b64})
-
                 await websocket.send_json({"event": "end_of_audio", "total_chunks": seq})
-
             except Exception as e:
-                print("[Murf REST ERROR]:", e)
+                print("[Murf REST ERROR health]:", e)
                 await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
+            return
+
+        # --- Normal LLM flow: call Gemini with full history (supports get_weather tool) ---
+        ai_reply = "I'm having trouble connecting right now."
+        try:
+            model = genai.GenerativeModel("models/gemini-1.5-flash", tools=[WEATHER_TOOL])
+
+            # Build messages for the GenerativeModel API
+            # Bake persona/system into the very first user message instead of "system" role
+            messages = []
+            if conversation_history[session_id]:
+                # prepend system style as a fake first user note
+                messages.append({"role": "user", "parts": [persona_cfg["system"]]})
+
+            for m in conversation_history[session_id]:
+                if m["role"] == "assistant":
+                    messages.append({"role": "model", "parts": [m["content"]]})
+                else:  # user
+                    messages.append({"role": "user", "parts": [m["content"]]})
 
 
+            first = model.generate_content(messages)
+
+            # detect function calls requested by Gemini
+            calls = []
+            for cand in getattr(first, "candidates", []) or []:
+                parts = getattr(cand, "content", None)
+                if not parts:
+                    continue
+                for p in getattr(parts, "parts", []) or []:
+                    fc = getattr(p, "function_call", None)
+                    if fc:
+                        calls.append(fc)
+
+            if calls:
+                tool_parts = []
+                for fc in calls:
+                    name = getattr(fc, "name", "")
+                    args = dict(getattr(fc, "args", {}) or {})
+                    if name == "get_weather":
+                        result = get_weather(args.get("city", ""), args.get("units", "c"))
+                        tool_parts.append({
+                            "function_response": {
+                                "name": name,
+                                "response": {"result": result}
+                            }
+                        })
+                    else:
+                        tool_parts.append({
+                            "function_response": {
+                                "name": name or "unknown",
+                                "response": {"result": {"error": "Tool not implemented."}}
+                            }
+                        })
+
+                second = model.generate_content([
+                    *messages,
+                    first.candidates[0].content,
+                    {"role": "tool", "parts": tool_parts},
+                ])
+                ai_reply = (second.text or "").strip()
+            else:
+                ai_reply = (first.text or "").strip()
+
+        except Exception as e:
+            print("[Gemini ERROR]:", e)
+            ai_reply = "I'm having trouble connecting right now."
+
+        # Save AI reply to memory
+        conversation_history[session_id].append({"role": "assistant", "content": ai_reply})
+
+        # Send reply text to client
+        await websocket.send_json({"event": "final_text", "data": ai_reply})
+
+        # --- Generate Murf TTS and stream back ---
+        if not murf_key:
+            await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
+            return
+
+        try:
+            headers = {"Content-Type": "application/json", "api-key": murf_key}
+            data = {
+                "voiceId": persona_cfg["murf"]["voiceId"],
+                "text": ai_reply,
+                "style": "Expressive",
+                "rate": 1.1,
+                "pitch": 1.1,
+                "variation": 2,
+                "format": "mp3"
+            }
+            resp = requests.post("https://api.murf.ai/v1/speech/generate", headers=headers, json=data)
+            resp.raise_for_status()
+            audio_url = resp.json().get("audioFile")
+            if not audio_url:
+                await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
+                return
+
+            seq = 0
+            with requests.get(audio_url, stream=True) as r:
+                r.raise_for_status()
+                for chunk in r.iter_content(chunk_size=4096):
+                    if not chunk:
+                        continue
+                    seq += 1
+                    b64 = base64.b64encode(chunk).decode("utf-8")
+                    await websocket.send_json({"event": "audio_chunk", "seq": seq, "data": b64})
+            await websocket.send_json({"event": "end_of_audio", "total_chunks": seq})
+        except Exception as e:
+            print("[Murf REST ERROR]:", e)
+            await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
 
     def on_turn(self: StreamingClient, event: TurnEvent):
-        # Bridge to asyncio loop
         asyncio.run_coroutine_threadsafe(
             _handle_turn_async(event.transcript, event.end_of_turn, event.turn_is_formatted),
             loop
@@ -475,9 +486,9 @@ async def ws_voice(websocket: WebSocket):
     def on_error(self: StreamingClient, error: StreamingError):
         print(f"[AAI] Error: {error}")
 
-    # --- start AAI streaming client ---
+    # --- Start AssemblyAI streaming client with dynamic key ---
     client = StreamingClient(StreamingClientOptions(
-        api_key=ASSEMBLYAI_API_KEY,
+        api_key=aai_key,
         api_host="streaming.assemblyai.com",
     ))
     client.on(StreamingEvents.Begin, on_begin)
@@ -485,13 +496,8 @@ async def ws_voice(websocket: WebSocket):
     client.on(StreamingEvents.Termination, on_terminated)
     client.on(StreamingEvents.Error, on_error)
 
-    client.connect(StreamingParameters(
-        sample_rate=16000,
-        encoding="pcm_s16le",
-        format_turns=True
-    ))
+    client.connect(StreamingParameters(sample_rate=16000, encoding="pcm_s16le", format_turns=True))
 
-    # bytes iterator for AAI
     def bytes_iter():
         while True:
             chunk = q.get()
@@ -503,7 +509,6 @@ async def ws_voice(websocket: WebSocket):
     t.start()
 
     try:
-        # receive PCM16 from browser; "DONE" stops
         while True:
             msg = await websocket.receive()
             if msg["type"] == "websocket.receive":
@@ -520,7 +525,6 @@ async def ws_voice(websocket: WebSocket):
         except Exception as e:
             print("[/ws-voice] AAI disconnect error:", e)
         print("[/ws-voice] closed")
-
 
 
 
@@ -911,7 +915,7 @@ async def generate_text(prompt: str):
 
 
 # add this near the top (after app = FastAPI())
-chat_sessions = {}  # in-memory: session_id -> list of {"role": "user"/"assistant", "content": "..."}
+# chat_sessions = {}  # in-memory: session_id -> list of {"role": "user"/"assistant", "content": "..."}
 
 # New endpoint: Audio -> STT -> LLM with history -> TTS -> return audio URL
 @app.post("/agent/chat/{session_id}")
@@ -938,7 +942,7 @@ async def agent_chat(session_id: str, file: UploadFile = File(...)):
 
 
         # 2) Get/create chat history and append user message
-        history = chat_sessions.setdefault(session_id, [])
+        history = conversation_history.setdefault(session_id, [])
         history.append({"role": "user", "content": user_text})
 
         # 3) Build conversation prompt from history
@@ -988,11 +992,10 @@ async def agent_chat(session_id: str, file: UploadFile = File(...)):
 
                 # Structured chat with system + latest user
                 messages = [
-                    {"role": "system", "parts": [
-                        system_instruction + " If the user asks about current weather, always call the get_weather tool and default to Celsius."
-                    ]},
+                    {"role": "user", "parts": [system_instruction]},  # persona baked in
                     {"role": "user", "parts": [user_text]},
                 ]
+                
 
                 # Ask Gemini; it might request a tool
                 first = model.generate_content(messages)
@@ -1223,7 +1226,7 @@ async def ws_stt(websocket: WebSocket):
 
 
 from starlette.websockets import WebSocket
-from starlette.websockets import WebSocketDisconnect
+# from starlette.websockets import WebSocketDisconnect
 
 @app.websocket("/ws-audio-out")
 async def ws_audio_out(websocket: WebSocket):
