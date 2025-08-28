@@ -277,6 +277,17 @@ function startFullFlow() {
   url.searchParams.set("session_id", sessionId);
   url.searchParams.set("persona", persona); 
 
+  const cityEl = document.getElementById("cityInput");
+  const city = cityEl && cityEl.value ? cityEl.value.trim() : "";
+  if (city) {
+    localStorage.setItem("anyra_city", city);
+    url.searchParams.set("city", city);
+  } else {
+    const cached = localStorage.getItem("anyra_city");
+    if (cached) url.searchParams.set("city", cached);
+  } 
+
+
   wsVoice = new WebSocket(url);
   wsVoice.binaryType = "arraybuffer";
 
@@ -487,3 +498,9 @@ function typeWriterEffect(element, text, speed = 40) {
   }
   typing();
 }
+
+
+window.addEventListener("DOMContentLoaded", () => {
+  const cityEl = document.getElementById("cityInput");
+  if (cityEl) cityEl.value = localStorage.getItem("anyra_city") || "";
+});

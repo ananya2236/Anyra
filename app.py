@@ -33,6 +33,8 @@ from pydantic import BaseModel
 from fastapi import Query
 import base64
 from datetime import datetime
+import re
+
 
 
 
@@ -141,6 +143,67 @@ def get_weather(city: str, units: str = "c"):
 
     except Exception as e:
         return {"error": str(e)}
+    
+
+# --- Symptom detection + advice ----------------------------------------------
+SYMPTOM_PATTERNS = {
+    "fever": r"\bfever(ish)?|running (a )?temperature|running hot\b",
+    "tired": r"\btired|exhaust(ed|ion)|fatigue(d)?\b",
+    "headache": r"\bheadache|migraine\b",
+    "cough": r"\bcough|cold|sore throat|throat pain|runny nose\b",
+    "stress": r"\bstress(ed)?|anxious|anxiety|overwhelmed|burnt out|burned out\b",
+}
+
+def detect_symptom(text: str):
+    t = (text or "").lower()
+    for k, pat in SYMPTOM_PATTERNS.items():
+        if re.search(pat, t):
+            return k
+    return None
+
+def _bits_from_weather(w):
+    if not isinstance(w, dict) or w.get("error"): 
+        return None
+    parts = []
+    if w.get("condition"): parts.append(w["condition"].lower())
+    if w.get("temperature"): parts.append(f"{w['temperature']}")
+    if w.get("humidity"): parts.append(f"humidity {w['humidity']}")
+    # try to infer “rain expected”
+    try:
+        rv = float(str(w.get("rain","0")).split()[0])
+        if rv > 0: parts.append("rain expected")
+    except Exception:
+        pass
+    return "; ".join(parts) if parts else None
+
+def build_health_advice(symptom: str, weather: dict | None):
+    wbits = _bits_from_weather(weather) if weather else None
+    wx = f" Today: {wbits}." if wbits else ""
+    # keep it voice-friendly (1–3 sentences). Avoid dosages.
+    if symptom == "fever":
+        msg = ("You’re feeling feverish." + wx +
+               " Rest, sip warm fluids, and you may take paracetamol if you’re not allergic—follow the label."
+               " If high fever or symptoms persist, see a clinician.")
+    elif symptom == "tired":
+        msg = ("You’re feeling drained." + wx +
+               " Hydrate, do a 5-minute stretch, and try a short power nap."
+               " If it lasts for days, review sleep and meals.")
+    elif symptom == "headache":
+        msg = ("Headache noted." + wx +
+               " Drink water, dim the screen, and rest; paracetamol is okay if suitable for you."
+               " Seek care if it’s severe or unusual.")
+    elif symptom == "cough":
+        msg = ("Sounds like a cold or cough." + wx +
+               " Try steam inhalation, warm water or ginger tea, and lozenges."
+               " If breathing is hard or fever persists, see a doctor.")
+    elif symptom == "stress":
+        msg = ("You’re stressed." + wx +
+               " Let’s do 3 deep breaths together… inhale… exhale… and consider a short walk or calming music.")
+    else:
+        msg = "I’m here for you. Tell me more about how you feel."
+    # soft safety note (kept brief for voice)
+    return msg + " This is general guidance—not medical advice."
+
 
 PERSONA = {
     "name": "bold-lady",
@@ -179,6 +242,7 @@ async def ws_voice(websocket: WebSocket):
     await websocket.accept()
 
     session_id = websocket.query_params.get("session_id", "anon")
+    user_city = websocket.query_params.get("city")
     persona_cfg = PERSONA
 
 
@@ -202,6 +266,49 @@ async def ws_voice(websocket: WebSocket):
     
         # 1) Always stream transcript to client (frontend me show karne ke liye)
         await websocket.send_json({"type": "turn", "text": text, "eot": eot, "formatted": formatted})
+        # 🩺 Health skill: if symptom detected, reply with context-aware advice
+        sym = detect_symptom(text or "")
+        if eot and formatted and sym:
+            wx = get_weather(user_city, "c") if user_city else None
+            reply = build_health_advice(sym, wx)
+            history = chat_sessions.setdefault(session_id, [])
+            history.append({"role": "user", "content": text})
+            history.append({"role": "assistant", "content": reply})
+
+            # send text now
+            await websocket.send_json({"event": "final_text", "data": reply})
+
+            # stream TTS via your existing Murf flow
+            if not MURF_API_KEY:
+                await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
+                return
+            try:
+                headers = {"Content-Type": "application/json", "api-key": MURF_API_KEY}
+                data = {
+                    "voiceId": PERSONA["murf"]["voiceId"],
+                    "text": reply, "style": "Expressive", "rate": 1.1, "pitch": 1.1, "variation": 2, "format": "mp3"
+                }
+                resp = requests.post("https://api.murf.ai/v1/speech/generate", headers=headers, json=data)
+                resp.raise_for_status()
+                audio_url = resp.json().get("audioFile")
+                if not audio_url:
+                    await websocket.send_json({"event": "end_of_audio", "total_chunks": 0})
+                    return
+                import base64
+                seq = 0
+                with requests.get(audio_url, stream=True) as r:
+                    r.raise_for_status()
+                    for chunk in r.iter_content(chunk_size=4096):
+                        if not chunk: continue
+                        seq += 1
+                        b64 = base64.b64encode(chunk).decode("utf-8")
+                        await websocket.send_json({"event":"audio_chunk","seq":seq,"data":b64})
+                await websocket.send_json({"event":"end_of_audio","total_chunks":seq})
+            except Exception as e:
+                print("[Murf REST ERROR health]:", e)
+                await websocket.send_json({"event":"end_of_audio","total_chunks":0})
+            return  # ✅ don't fall through to Gemini for this turn
+
     
         # 2) Run LLM + TTS only on final, formatted turns
         if eot and formatted and text.strip():
@@ -854,6 +961,11 @@ async def agent_chat(session_id: str, file: UploadFile = File(...)):
             "- Use sunrise/sunset to answer related questions (e.g., 'When does the sun set?'). "
             "- Always combine details into a conversational summary instead of just reading numbers. "
             "If some values are missing, politely skip them instead of saying 'Not available'. "
+            " After sharing weather, add 1 short wellness tip based on conditions: "
+            "If rain or humidity > 70% → suggest warm water and staying indoors; "
+            "If hot/sunny → hydrate and avoid direct sun; "
+            "If UV index > 6 → sunscreen or shade."
+
         )
 
 
@@ -1264,7 +1376,7 @@ async def day20_llm_to_murf(q: str = Query(..., min_length=1)):
                 "variation": 2
             }
         }
-        
+
         await ws.send(json.dumps(voice_config_msg))
         print("[MURF ▶] Sent voice_config")
 
