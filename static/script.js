@@ -281,9 +281,11 @@ function startFullFlow() {
 
   // 🚨 Block if keys missing
   if (!murfKey || !aaiKey || !geminiKey) {
-    alert("⚠️ Please enter all API keys in Settings before starting the assistant.");
+    alert("⚠️ Please enter all API keys in Settings before starting.");
+    document.getElementById("settingsModal").classList.remove("hidden");
     return;
   }
+  
 
   const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
   const url = new URL(`${wsProtocol}://${window.location.host}/ws-voice`);
@@ -304,6 +306,8 @@ function startFullFlow() {
     const cached = localStorage.getItem("anyra_city");
     if (cached) url.searchParams.set("city", cached);
   } 
+
+  
 
 
   wsVoice = new WebSocket(url);
