@@ -478,14 +478,24 @@ function float32ToPCM16(float32Array) {
   return buffer;
 }
 
-// --- Record button listener ---
 document.getElementById("recordBtn").addEventListener("click", () => {
   if (!isRecording) {
+    const murfKey = localStorage.getItem("MURF_API_KEY");
+    const aaiKey = localStorage.getItem("ASSEMBLYAI_API_KEY");
+    const geminiKey = localStorage.getItem("GEMINI_API_KEY");
+
+    if (!murfKey || !aaiKey || !geminiKey) {
+      alert("⚠️ Please enter all API keys before starting!");
+      document.getElementById("settingsModal").classList.remove("hidden"); 
+      return;
+    }
+
     startFullFlow();
   } else {
     stopRecording();
   }
 });
+
 
 
 function showTypingIndicator() {
@@ -540,6 +550,12 @@ saveKeysBtn.addEventListener("click", async () => {
   const murfKey = document.getElementById("murfKeyInput").value.trim();
   const aaiKey = document.getElementById("aaiKeyInput").value.trim();
   const geminiKey = document.getElementById("geminiKeyInput").value.trim();
+
+    if (!murfKey || !aaiKey || !geminiKey) {
+    alert("⚠️ Please enter all API keys before saving!");
+    return; // stop until all fields are filled
+  }
+
 
   // Save to localStorage
   if (murfKey) localStorage.setItem("MURF_API_KEY", murfKey);

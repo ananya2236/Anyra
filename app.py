@@ -19,22 +19,22 @@ import requests, time, os, asyncio, threading, queue, json, websockets, base64, 
 from datetime import datetime
 
 # Disable local .env fallback for production
-USE_LOCAL_KEYS = False
+# USE_LOCAL_KEYS = False
 
 
-# --- load once at startup (for local dev only) ---
-# load_dotenv()
-# Optional local defaults — endpoints will require frontend keys
-MURF_API_KEY_LOCAL = os.getenv("MURF_API_KEY")
-ASSEMBLYAI_API_KEY_LOCAL = os.getenv("ASSEMBLYAI_API_KEY")
-GEMINI_API_KEY_LOCAL = os.getenv("GEMINI_API_KEY")
+# # --- load once at startup (for local dev only) ---
+# # load_dotenv()
+# # Optional local defaults — endpoints will require frontend keys
+# MURF_API_KEY_LOCAL = os.getenv("MURF_API_KEY")
+# ASSEMBLYAI_API_KEY_LOCAL = os.getenv("ASSEMBLYAI_API_KEY")
+# GEMINI_API_KEY_LOCAL = os.getenv("GEMINI_API_KEY")
 
-# configure genai if we have a local key (keeps safe fallback)
-if GEMINI_API_KEY_LOCAL:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY_LOCAL)
-    except Exception as e:
-        print("Warning: failed to configure genai with local key:", e)
+# # configure genai if we have a local key (keeps safe fallback)
+# if GEMINI_API_KEY_LOCAL:
+#     try:
+#         genai.configure(api_key=GEMINI_API_KEY_LOCAL)
+#     except Exception as e:
+#         print("Warning: failed to configure genai with local key:", e)
 
 # app + dirs
 app = FastAPI()
@@ -290,9 +290,11 @@ async def upload_audio(file: UploadFile = File(...)):
 # AssemblyAI simple transcribe (file)
 @app.post("/transcribe/file")
 async def transcribe_file(file: UploadFile = File(...), x_aai_key: str = Header(None)):
-    if not x_aai_key and not ASSEMBLYAI_API_KEY_LOCAL:
+    # ✅ Force only frontend key
+    if not x_aai_key:
         raise HTTPException(status_code=400, detail="AssemblyAI key required (x-aai-key header)")
-    key = x_aai_key or ASSEMBLYAI_API_KEY_LOCAL
+    key = x_aai_key
+    
     try:
         aai.settings.api_key = key
         audio_data = await file.read()
@@ -469,12 +471,12 @@ async def agent_chat(
 
 # --- WebSocket: /ws-stt (AssemblyAI streaming receive) ---
 @app.websocket("/ws-stt")
-async def ws_stt(websocket: WebSocket, aai_key: str | None = Query(None)):
+async def ws_stt(websocket: WebSocket, aai_key: str = Query(...)):
     await websocket.accept()
-    key = aai_key or ASSEMBLYAI_API_KEY_LOCAL
-    if not key:
+    if not aai_key:
         await websocket.send_json({"event": "error", "message": "AssemblyAI key required as query param `aai_key`"})
         await websocket.close(); return
+    aai.settings.api_key = aai_key
     aai.settings.api_key = key
     q: "queue.Queue[bytes|None]" = queue.Queue()
     loop = asyncio.get_event_loop()
