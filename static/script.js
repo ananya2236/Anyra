@@ -279,14 +279,6 @@ function startFullFlow() {
   const aaiKey = localStorage.getItem("ASSEMBLYAI_API_KEY");
   const geminiKey = localStorage.getItem("GEMINI_API_KEY");
 
-  // 🚨 Block if keys missing
-  if (!murfKey || !aaiKey || !geminiKey) {
-    alert("⚠️ Please enter all API keys in Settings before starting.");
-    document.getElementById("settingsModal").classList.remove("hidden");
-    return;
-  }
-  
-
   const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
   const url = new URL(`${wsProtocol}://${window.location.host}/ws-voice`);
 
@@ -402,12 +394,6 @@ function startFullFlow() {
     
     
 
-    // ✅ End of audio event (no second playback)
-    if (data.event === "end_of_audio") {
-      if (aiBall) aiBall.classList.remove("speaking");
-      console.log("✅ End of audio received, streaming already handled.");
-      return;
-    }
 
     // ❌ Handle errors
     if (data.event === "error") {
@@ -550,17 +536,46 @@ const saveKeysBtn = document.getElementById("saveKeysBtn");
 settingsBtn.addEventListener("click", () => settingsModal.classList.remove("hidden"));
 closeModal.addEventListener("click", () => settingsModal.classList.add("hidden"));
 
-saveKeysBtn.addEventListener("click", () => {
+saveKeysBtn.addEventListener("click", async () => {
   const murfKey = document.getElementById("murfKeyInput").value.trim();
   const aaiKey = document.getElementById("aaiKeyInput").value.trim();
   const geminiKey = document.getElementById("geminiKeyInput").value.trim();
 
+  // Save to localStorage
   if (murfKey) localStorage.setItem("MURF_API_KEY", murfKey);
   if (aaiKey) localStorage.setItem("ASSEMBLYAI_API_KEY", aaiKey);
   if (geminiKey) localStorage.setItem("GEMINI_API_KEY", geminiKey);
 
-  alert("✅ API keys saved!");
-  settingsModal.classList.add("hidden");
+  try {
+    // ✅ Validate Murf
+    if (murfKey) {
+      const res = await fetch("/voices", { headers: { "x-murf-key": murfKey } });
+      if (!res.ok) throw new Error("Invalid Murf API Key");
+    }
+
+    // ✅ Validate AssemblyAI (simpler request)
+    if (aaiKey) {
+      const res = await fetch("https://api.assemblyai.com/v2/transcript", {
+        method: "POST",
+        headers: { "authorization": aaiKey }
+      });
+      if (res.status === 401) throw new Error("Invalid AssemblyAI API Key");
+    }
+
+    // ✅ Validate Gemini
+    if (geminiKey) {
+      const res = await fetch("https://generativelanguage.googleapis.com/v1/models", {
+        headers: { "x-goog-api-key": geminiKey }
+      });
+      if (res.status === 403 || res.status === 401) throw new Error("Invalid Gemini API Key");
+    }
+
+    alert("✅ API keys saved & validated!");
+    settingsModal.classList.add("hidden");
+
+  } catch (err) {
+    alert("❌ " + err.message);
+  }
 });
 
 

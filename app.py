@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import google.generativeai as genai
 from tempfile import NamedTemporaryFile
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from starlette.websockets import WebSocketDisconnect
 from pathlib import Path
 import assemblyai as aai
@@ -23,7 +23,7 @@ USE_LOCAL_KEYS = False
 
 
 # --- load once at startup (for local dev only) ---
-load_dotenv()
+# load_dotenv()
 # Optional local defaults — endpoints will require frontend keys
 MURF_API_KEY_LOCAL = os.getenv("MURF_API_KEY")
 ASSEMBLYAI_API_KEY_LOCAL = os.getenv("ASSEMBLYAI_API_KEY")
