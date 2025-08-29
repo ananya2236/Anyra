@@ -1,2 +1,9 @@
-flask
-flask-cors
+fastapi
+uvicorn
+jinja2
+python-multipart
+requests
+assemblyai
+google-generativeai
+websockets
+gunicorn

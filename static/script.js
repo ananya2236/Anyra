@@ -275,18 +275,25 @@ function startFullFlow() {
   const rightFrame = document.getElementById("rightFrame");
   if (rightFrame && rightFrame.classList.contains("hidden")) toggleChat();
 
-  const url = new URL("ws://127.0.0.1:8000/ws-voice");
-  url.searchParams.set("session_id", sessionId);
-  url.searchParams.set("persona", persona); 
-
   const murfKey = localStorage.getItem("MURF_API_KEY");
   const aaiKey = localStorage.getItem("ASSEMBLYAI_API_KEY");
   const geminiKey = localStorage.getItem("GEMINI_API_KEY");
 
-  if (murfKey) url.searchParams.set("murf_key", murfKey);
-  if (aaiKey) url.searchParams.set("aai_key", aaiKey);
-  if (geminiKey) url.searchParams.set("gemini_key", geminiKey);
+  // 🚨 Block if keys missing
+  if (!murfKey || !aaiKey || !geminiKey) {
+    alert("⚠️ Please enter all API keys in Settings before starting the assistant.");
+    return;
+  }
 
+  const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const url = new URL(`${wsProtocol}://${window.location.host}/ws-voice`);
+
+  url.searchParams.set("session_id", sessionId);
+  url.searchParams.set("persona", persona); 
+
+  url.searchParams.set("murf_key", murfKey);
+  url.searchParams.set("aai_key", aaiKey);
+  url.searchParams.set("gemini_key", geminiKey);
 
   const cityEl = document.getElementById("cityInput");
   const city = cityEl && cityEl.value ? cityEl.value.trim() : "";
@@ -551,3 +558,95 @@ saveKeysBtn.addEventListener("click", () => {
   alert("✅ API keys saved!");
   settingsModal.classList.add("hidden");
 });
+
+
+// --- API Helpers (fetch-based routes) ---
+
+async function fetchVoices() {
+  const murfKey = localStorage.getItem("MURF_API_KEY");
+  if (!murfKey) throw new Error("⚠️ Murf API key missing. Please enter it in Settings.");
+  const res = await fetch("/voices", {
+    headers: { "x-murf-key": murfKey }
+  });
+  if (!res.ok) throw new Error("Failed to fetch voices");
+  return res.json();
+}
+
+
+async function generateVoice(text, voiceId) {
+  const murfKey = localStorage.getItem("MURF_API_KEY");
+  if (!murfKey) {
+    throw new Error("⚠️ Murf API key missing. Please enter it in Settings.");
+  }
+
+  const res = await fetch("/generate-voice", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-murf-key": murfKey
+    },
+    body: JSON.stringify({ text, voiceId })
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Voice generation failed: ${errText}`);
+  }
+
+  return res.json();
+}
+
+
+async function generateTTS(text, voiceId = "en-IN-alia") {
+  const murfKey = localStorage.getItem("MURF_API_KEY");
+  if (!murfKey) {
+    throw new Error("⚠️ Murf API key missing. Please enter it in Settings.");
+  }
+
+  const res = await fetch("/tts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-murf-key": murfKey
+    },
+    body: JSON.stringify({ text, voiceId })
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`TTS request failed: ${errText}`);
+  }
+
+  return res.json();
+}
+
+async function queryLLM(audioFile) {
+  const murfKey = localStorage.getItem("MURF_API_KEY");
+  const aaiKey = localStorage.getItem("ASSEMBLYAI_API_KEY");
+  const geminiKey = localStorage.getItem("GEMINI_API_KEY");
+
+  // 🚨 Block if any key is missing
+  if (!murfKey || !aaiKey || !geminiKey) {
+    throw new Error("⚠️ Missing API keys. Please enter Murf, AssemblyAI, and Gemini keys in Settings.");
+  }
+
+  const formData = new FormData();
+  formData.append("file", audioFile);
+
+  const res = await fetch("/llm/query", {
+    method: "POST",
+    headers: {
+      "x-murf-key": murfKey,
+      "x-aai-key": aaiKey,
+      "x-gemini-key": geminiKey
+    },
+    body: formData
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`LLM query failed: ${errText}`);
+  }
+
+  return res.json();
+}
