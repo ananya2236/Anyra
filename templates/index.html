@@ -179,10 +179,11 @@
   
 
     <!-- Show/Hide Chat Button (Top Right) -->
-    <button id="chatToggleBtn" onclick="toggleChat()" 
-        class="absolute top-6 right-16 hover:text-pink-400 text-pink-500 font-bold p-2 z-10">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" 
-           stroke-width="1.5" stroke="currentColor" class="size-6">
+    <button id="chatToggleBtn" onclick="toggleChat()"
+      class="absolute top-4 right-16 p-3 z-10 text-pink-500 hover:text-pink-400 lg:top-6 lg:p-2">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+           stroke-width="1.5" stroke="currentColor" class="size-8 lg:size-6">
+    
         <path stroke-linecap="round" stroke-linejoin="round" 
               d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 
                  1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133
@@ -195,11 +196,12 @@
 
 
     <!-- Settings Button -->
-<button id="settingsBtn" 
-        class="absolute top-6 right-6 hover:text-pink-400 text-pink-500 font-bold p-2 z-10">
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" 
-       stroke-width="1.5" stroke="currentColor" 
-       class="size-6 text-cyan-500 hover:text-cyan-400 font-bold">
+<button id="settingsBtn"
+  class="absolute top-4 right-4 p-3 z-10 text-pink-500 hover:text-pink-400 lg:top-6 lg:right-6 lg:p-2">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+       stroke-width="1.5" stroke="currentColor"
+       class="size-8 lg:size-6 text-cyan-500 hover:text-cyan-400 font-bold">
+
     <path stroke-linecap="round" stroke-linejoin="round" 
           d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 
              1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 
@@ -249,30 +251,37 @@
     <div id="leftFrame" 
        class="flex flex-col items-center justify-start pt-[10px] w-full lg:w-1/2 transition-all duration-500">
       <!-- Glowing Ball -->
-      <div class="relative mt-6 mb-10 w-56 h-56">
+      <div class="relative mt-2 mb-6 w-[68vw] h-[68vw] max-w-[420px] max-h-[420px] lg:w-56 lg:h-56">
+
+
         <div id="ai-container" class="relative w-full h-full rounded-full swirl-glow shadow-lg">
-          <div id="eye-left" class="eye"></div>
-          <div id="eye-right" class="eye"></div>
+          <!-- Left Eye -->
+<div id="eye-left"
+  class="absolute w-8 h-12 sm:w-7 sm:h-12 lg:w-4 lg:h-7 bg-white rounded-xl top-20 left-16 shadow-md">
+</div>
+
+<!-- Right Eye -->
+<div id="eye-right"
+  class="absolute w-8 h-12 sm:w-7 sm:h-12 lg:w-4 lg:h-7 bg-white rounded-xl top-20 right-16 shadow-md">
+</div>
+
         </div>
       </div>
-      <p id="ai-greeting" class="mt-4 text-3xl font-bold text-white tracking-wide">
+      <p id="ai-greeting" class="mt-2 text-4xl lg:text-3xl font-extrabold text-white tracking-wide text-center">
+
+
         Hello! I'm Anyra
       </p>
-      
-      <!-- Add under the greeting, before the buttons -->
-      <div class="mt-6 flex items-center gap-3">
-        <label for="cityInput" class="text-sm text-gray-300">City for weather-aware tips:</label>
-        <input id="cityInput" type="text" placeholder="e.g., Mumbai"
-               class="bg-gray-800/70 border border-gray-600 rounded px-3 py-1 text-sm focus:outline-none w-44"/>
-      </div>
-      
       
 
       <!-- Buttons -->
       <div class="flex gap-6 mb-4 mt-10">
-        <button id="recordBtn" audioPlayer class="hover:text-green-400 text-white font-bold p-2 rounded border border-green-500">
+        <button id="recordBtn" audioPlayer
+          class="hover:text-green-400 text-white font-semibold px-6 py-3 text-xl rounded-xl border border-green-500 active:scale-[.98] transition-all lg:text-base lg:px-4 lg:py-2">
           Start
         </button>
+
+
       </div>
 
 
@@ -290,11 +299,12 @@
     </div>
 
     <!-- RIGHT FRAME (Hidden Initially) -->
-    <div id="rightFrame" 
-         class="hidden w-full pt-[20px] pb-[40px] overflow-y-auto lg:w-1/2 lg:pt-[100px] lg:pb-[100px] flex justify-center">
+    <div id="rightFrame"
+     class="hidden w-full mt-6 pb-10 overflow-y-auto flex justify-center lg:w-1/2 lg:mt-0 lg:pb-[100px]">
+
       <div id="chatContainer"
-        class="flex flex-col space-y-3 p-4 h-[400px] w-[95%] sm:w-[90%] md:w-[80%] lg:w-[550px] overflow-y-auto
-               bg-gradient-to-br from-gray-700/50 to-gray-800/50 rounded-xl shadow-lg">
+     class="flex flex-col space-y-3 p-4 h-[400px] w-[550px] overflow-y-auto
+            bg-gradient-to-br from-gray-700/50 to-gray-800/50 rounded-xl shadow-lg">
       </div>
     </div>
 
@@ -334,15 +344,18 @@ function toggleChat() {
   const btn = document.getElementById("chatToggleBtn");
 
   if (window.innerWidth < 1024) {
-    // 📱 Mobile → just show/hide below
-    rightFrame.classList.toggle("hidden");
-    if (!rightFrame.classList.contains("hidden")) {
-      rightFrame.classList.add("mt-6"); // add spacing when visible
-    } else {
-      rightFrame.classList.remove("mt-6");
-    }
-    return;
+  // 📱 Mobile → just show/hide below the ball
+  rightFrame.classList.toggle("hidden");
+
+  // Optional: scroll down when chat opens
+  if (!rightFrame.classList.contains("hidden")) {
+    rightFrame.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  return;
+}
+
+
+
 
   // 💻 Laptop → side-by-side toggle
   if (rightFrame.classList.contains("hidden")) {
