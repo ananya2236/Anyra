@@ -121,110 +121,280 @@
                     0 0 140px rgba(255, 255, 0, 0.7);
       }
     }
-
+/* 
 .speaking {
-  animation: speakingPulse 1s ease-in-out infinite;
+  animation: speakingPulse 5s ease-in-out infinite;
 }
+#ai-greeting {
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.6),
+               0 0 15px rgba(180, 100, 255, 0.8);
+} */
+@keyframes floatParticles {
+  from { transform: translateY(0); opacity: 0.8; }
+  to { transform: translateY(-100vh); opacity: 0; }
+}
+
+.particle {
+  position: absolute;
+  bottom: -10px;
+  border-radius: 50%;
+  animation: floatParticles 12s linear infinite;
+  opacity: 0.9;
+}
+
+/* 🎨 Colored particle variants */
+.particle-cyan {
+  background: rgba(0, 255, 255, 0.9);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.8),
+              0 0 24px rgba(0, 255, 255, 0.6);
+}
+.particle-pink {
+  background: rgba(255, 0, 255, 0.9);
+  box-shadow: 0 0 12px rgba(255, 0, 255, 0.8),
+              0 0 24px rgba(255, 0, 255, 0.6);
+}
+.particle-blue {
+  background: rgba(0, 128, 255, 0.9);
+  box-shadow: 0 0 12px rgba(0, 128, 255, 0.8),
+              0 0 24px rgba(0, 128, 255, 0.6);
+}
+.particle-purple {
+  background: rgba(180, 0, 255, 0.9);
+  box-shadow: 0 0 12px rgba(180, 0, 255, 0.8),
+              0 0 24px rgba(180, 0, 255, 0.6);
+}
+
 
     
   }
   </style>
 </head>
 
-<body class="bg-black min-h-screen flex text-white">
+<body class="bg-black min-h-screen flex text-white pt-6">
 
+  
   <!-- Main Container -->
-  <div id="mainContainer" class="relative flex flex-col items-center justify-center w-full">
+  <div id="mainContainer" 
+     class="relative flex flex-col items-center justify-center w-full lg:flex-row lg:items-start">
+  
 
     <!-- Show/Hide Chat Button (Top Right) -->
-    <button id="chatToggleBtn" onclick="toggleChat()" 
-            class="absolute top-6 right-6 hover:text-pink-400 text-white font-bold p-2 rounded border border-pink-500 z-10">
-      Show Chat
+    <button id="chatToggleBtn" onclick="toggleChat()"
+      class="absolute top-4 right-16 p-3 z-10 text-pink-500 hover:text-pink-400 lg:top-6 lg:p-2">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+           stroke-width="1.5" stroke="currentColor" class="size-8 lg:size-6">
+    
+        <path stroke-linecap="round" stroke-linejoin="round" 
+              d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 
+                 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133
+                 a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379
+                 c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995
+                 -2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175
+                 -7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+      </svg>
     </button>
 
+
+    <!-- Settings Button -->
+<button id="settingsBtn"
+  class="absolute top-4 right-4 p-3 z-10 text-pink-500 hover:text-pink-400 lg:top-6 lg:right-6 lg:p-2">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+       stroke-width="1.5" stroke="currentColor"
+       class="size-8 lg:size-6 text-cyan-500 hover:text-cyan-400 font-bold">
+
+    <path stroke-linecap="round" stroke-linejoin="round" 
+          d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 
+             1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 
+             1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 
+             2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 
+             7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 
+             1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 
+             6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 
+             1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 
+             6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 
+             1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 
+             .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 
+             6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 
+             1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 
+             1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+  </svg>
+</button>
+
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-20">
+  <div class="bg-gray-900 p-6 rounded-2xl w-96 shadow-lg">
+    <h2 class="text-xl font-bold mb-4">API Key Configuration</h2>
+
+    <label class="block mb-2 text-sm">Murf API Key</label>
+    <input id="murfKeyInput" type="text" placeholder="Enter Murf API Key"
+           class="w-full mb-4 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white"/>
+
+    <label class="block mb-2 text-sm">AssemblyAI API Key</label>
+    <input id="aaiKeyInput" type="text" placeholder="Enter AssemblyAI Key"
+           class="w-full mb-4 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white"/>
+
+    <label class="block mb-2 text-sm">Gemini API Key</label>
+    <input id="geminiKeyInput" type="text" placeholder="Enter Gemini Key"
+           class="w-full mb-6 px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white"/>
+
+    <div class="flex justify-end gap-4">
+      <button id="closeModal" class="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600">Cancel</button>
+      <button id="saveKeysBtn" class="px-4 py-2 rounded bg-cyan-600 hover:bg-cyan-500">Save</button>
+    </div>
+  </div>
+</div>
+
+
     <!-- LEFT FRAME -->
-    <div id="leftFrame" class="flex flex-col items-center justify-start pt-[10px] w-full transition-all duration-500">
-      
+    <div id="leftFrame" 
+       class="flex flex-col items-center justify-start pt-[10px] w-full lg:w-1/2 transition-all duration-500">
       <!-- Glowing Ball -->
-      <div class="relative mt-6 mb-10 w-56 h-56">
+      <div class="relative mt-2 mb-6 w-[68vw] h-[68vw] max-w-[420px] max-h-[420px] lg:w-56 lg:h-56">
+
+
         <div id="ai-container" class="relative w-full h-full rounded-full swirl-glow shadow-lg">
-          <div id="eye-left" class="eye"></div>
-          <div id="eye-right" class="eye"></div>
+          <!-- Left Eye -->
+<div id="eye-left"
+  class="absolute w-8 h-12 sm:w-7 sm:h-12 lg:w-4 lg:h-7 bg-white rounded-xl top-20 left-16 shadow-md">
+</div>
+
+<!-- Right Eye -->
+<div id="eye-right"
+  class="absolute w-8 h-12 sm:w-7 sm:h-12 lg:w-4 lg:h-7 bg-white rounded-xl top-20 right-16 shadow-md">
+</div>
+
         </div>
       </div>
+      <p id="ai-greeting" class="mt-2 text-4xl lg:text-3xl font-extrabold text-white tracking-wide text-center">
+
+
+        Hello! I'm Anyra
+      </p>
+      
 
       <!-- Buttons -->
-      <div class="flex gap-6 mb-4">
-        <button id="recordBtn" onclick="toggleRecording()" 
-                class="hover:text-cyan-400 text-white font-bold p-2 rounded border border-cyan-500">
+      <div class="flex gap-6 mb-4 mt-10">
+        <button id="recordBtn" audioPlayer
+          class="hover:text-green-400 text-white font-semibold px-6 py-3 text-xl rounded-xl border border-green-500 active:scale-[.98] transition-all lg:text-base lg:px-4 lg:py-2">
           Start
         </button>
+
+
       </div>
+
 
       <!-- Upload Status -->
       <p id="uploadStatus" class="text-cyan-300 mt-4 text-center text-sm">Upload status will appear here</p>
+      <!-- Live Transcript -->
+
 
       <!-- Audio -->
-      <audio id="echoAudio" controls class="mt-4"></audio>
-      <audio id="audioPlayer" controls style="display: none;"></audio>
+      
+      <audio id="audioPlayer" style="display: none;"></audio>
+      <!-- <audio id="ttsAudio" style="display: none;"></audio> -->
+
+
     </div>
 
     <!-- RIGHT FRAME (Hidden Initially) -->
-    <div id="rightFrame" class="pt-[100px] pb-[100px] overflow-y-auto hidden">
-      <div id="chatContainer" 
-        class="p-20 space-y-4 h-[400px] w-[550px] overflow-y-auto
-              bg-gradient-to-br from-gray-700 to-white-600 
-              border-t-2 border-l-2 border-gray-100 
-              border-b-2 border-r-2 border-gray-500 
-              rounded-lg 
-              shadow-[8px_8px_20px_rgba(0,0,0,0.6),-8px_-8px_20px_rgba(255,255,255,0.1)]">
+    <div id="rightFrame"
+     class="hidden w-full mt-6 pb-10 overflow-y-auto flex justify-center lg:w-1/2 lg:mt-0 lg:pb-[100px]">
 
-        <!-- AI message -->
-        <div class="flex">
-          <div class="text-white rounded-lg p-3 max-w-xs border border-white">
-            Hi! I'm Anyra
-          </div>
-        </div>
-
-        <!-- User message -->
-        <div class="flex justify-end">
-          <div class="bg-cyan-900 text-white rounded-lg p-3 max-w-xs border border-white">
-            Hi
-          </div>
-        </div>
+      <div id="chatContainer"
+     class="flex flex-col space-y-3 p-4 h-[400px] w-[550px] overflow-y-auto
+            bg-gradient-to-br from-gray-700/50 to-gray-800/50 rounded-xl shadow-lg">
       </div>
+    </div>
+
+<!-- Background Particles -->
+<div class="absolute inset-0 overflow-hidden -z-10">
+  <!-- Cyan Particles -->
+  <div class="particle particle-cyan w-2 h-2 left-1/4" style="animation-duration: 10s; animation-delay: 0s;"></div>
+  <div class="particle particle-cyan w-1 h-1 left-2/5" style="animation-duration: 14s; animation-delay: 2s;"></div>
+
+  <!-- Pink Particles -->
+  <div class="particle particle-pink w-3 h-3 left-1/2" style="animation-duration: 12s; animation-delay: 1s;"></div>
+  <div class="particle particle-pink w-1.5 h-1.5 left-3/5" style="animation-duration: 18s; animation-delay: 3s;"></div>
+
+  <!-- Blue Particles -->
+  <div class="particle particle-blue w-1.5 h-1.5 left-3/4" style="animation-duration: 8s; animation-delay: 1s;"></div>
+  <div class="particle particle-blue w-2 h-2 left-1/6" style="animation-duration: 16s; animation-delay: 4s;"></div>
+
+  <!-- Purple Particles -->
+  <div class="particle particle-purple w-2.5 h-2.5 left-1/3" style="animation-duration: 15s; animation-delay: 2s;"></div>
+  <div class="particle particle-purple w-1 h-1 left-5/6" style="animation-duration: 20s; animation-delay: 5s;"></div>
+</div>
+
+
+      
+
+
     </div>
 
   </div>
 
   <script src="/static/script.js"></script>
   <script>
-    function toggleChat() {
-      const main = document.getElementById("mainContainer");
-      const rightFrame = document.getElementById("rightFrame");
-      const leftFrame = document.getElementById("leftFrame");
-      const btn = document.getElementById("chatToggleBtn");
+function toggleChat() {
+  const rightFrame = document.getElementById("rightFrame");
+  const main = document.getElementById("mainContainer");
+  const leftFrame = document.getElementById("leftFrame");
+  const btn = document.getElementById("chatToggleBtn");
 
-    if (rightFrame.classList.contains("hidden")) {
-        // Switch to side-by-side layout
-        main.classList.remove("flex-col", "items-center", "justify-center");
-        main.classList.add("flex-row", "items-center", "justify-center"); // <-- added items-center
-        leftFrame.classList.add("w-1/2");
-        leftFrame.classList.remove("w-full");
-        rightFrame.classList.remove("hidden");
-        rightFrame.classList.add("w-1/2");
-        btn.textContent = "Hide Chat";
-    } else {
-        // Switch back to centered layout
-        main.classList.remove("flex-row", "items-center", "justify-center");
-        main.classList.add("flex-col", "items-center", "justify-center");
-        leftFrame.classList.remove("w-1/2");
-        leftFrame.classList.add("w-full");
-        rightFrame.classList.add("hidden");
-        btn.textContent = "Show Chat";
-    }
+  if (window.innerWidth < 1024) {
+  // 📱 Mobile → just show/hide below the ball
+  rightFrame.classList.toggle("hidden");
 
-    }
+  // Optional: scroll down when chat opens
+  if (!rightFrame.classList.contains("hidden")) {
+    rightFrame.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  return;
+}
+
+
+
+
+  // 💻 Laptop → side-by-side toggle
+  if (rightFrame.classList.contains("hidden")) {
+    main.classList.remove("flex-col", "items-center", "justify-center");
+    main.classList.add("flex-row", "items-start");
+    leftFrame.classList.add("w-1/2");
+    leftFrame.classList.remove("w-full");
+    rightFrame.classList.remove("hidden");
+    rightFrame.classList.add("w-1/2");
+
+    btn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+           stroke-width="1.5" stroke="currentColor" class="size-6 text-pink-500 hover:text-pink-400">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>`;
+  } else {
+    main.classList.remove("flex-row", "items-start");
+    main.classList.add("flex-col", "items-center", "justify-center");
+    leftFrame.classList.remove("w-1/2");
+    leftFrame.classList.add("w-full");
+    rightFrame.classList.add("hidden");
+    rightFrame.classList.remove("w-1/2");
+
+    btn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+           stroke-width="1.5" stroke="currentColor" class="size-6 text-pink-500 hover:text-pink-400">
+        <path stroke-linecap="round" stroke-linejoin="round" 
+              d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 
+                 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 
+                 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 
+                 48.172 48.172 0 0 0 3.423-.379c1.584-.233 
+                 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 
+                 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 
+                 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+      </svg>`;
+  }
+}
+
+
   </script>
 
 </body>
