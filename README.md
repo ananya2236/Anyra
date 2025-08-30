@@ -124,8 +124,9 @@ Tailwind CSS – Modern UI styling.
 ```mermaid
 flowchart TD
     A[🎙️ User Speaks] --> B[🎧 Audio Capture in Browser]
-    B --> C[📡 FastAPI Backend /agent/chat/{session_id}]
-    C --> D[📝 AssemblyAI Transcribes Speech → Text]
-    D --> E[🤖 Gemini LLM Generates Contextual Reply]
-    E --> F[🔊 Murf AI Converts Text → Speech]
-    F --> G[🎧 Browser Plays Audio + Updates UI] 
+    B --> C["📡 FastAPI Backend /agent/chat/{session_id}"]
+    C --> D["📝 AssemblyAI Transcribes Speech → Text"]
+    D --> E["🤖 Gemini LLM Generates Contextual Reply"]
+    E --> F["🔊 Murf AI Converts Text → Speech"]
+    F --> G[🎧 Browser Plays Audio + Updates UI]
+
