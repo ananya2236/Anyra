@@ -1,132 +1,131 @@
-#  Anyra – AI Voice Assistant
+# 🎤 Anyra – AI Voice Assistant  
 
-Anyra is an **AI-powered conversational voice assistant** that combines **real-time speech recognition, large language models, and text-to-speech synthesis** to create natural, human-like voice conversations.  
-It features **session-based memory**, an **animated avatar**, and an interactive chat UI to make AI interactions more engaging and lifelike.
+**Anyra** is an **AI-powered conversational voice assistant** that combines **real-time speech recognition**, **large language models**, and **text-to-speech synthesis** to create **natural, human-like voice conversations**.  
 
----
+With a bold personality, an animated avatar, and interactive chat UI, Anyra delivers an **engaging, lifelike AI experience**.  
 
-##  Features
-- Live Voice Capture – Supports **manual** & **automatic** recording modes.
-- LLM Conversations – Context-aware responses using **Google Gemini**.
-- Natural Voice Output – High-quality **Murf AI** text-to-speech.
-- Fallback Voice – Browser SpeechSynthesis if TTS fails.
-- Animated AI Avatar – Glowing orb & eye-tracking visuals.
-- Dynamic Chat UI – Switch between avatar mode and side-by-side chat history.
-- Persistent Context – Maintains session history using unique `session_id`.
-- Audio Upload – Save manual recordings locally for future reference.
-- Error Handling – Graceful fallback when APIs are unavailable.
+🌐 **Live Demo:** [Anyra on Render](https://anyra.onrender.com)  
 
 ---
 
-## Tech Stack
+## ✨ Features  
 
-| Layer            | Technology |
-|------------------|------------|
-| **Frontend**     | HTML, Tailwind CSS, JavaScript |
-| **Backend**      | Python, FastAPI |
-| **AI Model**     | Google Gemini 1.5 Flash |
-| **Speech-to-Text** | AssemblyAI |
-| **Text-to-Speech** | Murf API |
-| **Styling**      | Tailwind CSS + custom animations |
-| **Hosting**      | Local development (can be deployed on cloud) |
+- 🎙️ **Live Voice Capture** – Manual & automatic recording modes.  
+- 🧠 **LLM Conversations** – Context-aware replies powered by **Google Gemini 1.5 Flash**.  
+- 🗣️ **Natural Voice Output** – **Murf AI TTS** with browser SpeechSynthesis fallback.  
+- 👁️ **Animated Avatar** – Glowing orb + eye-tracking visuals for lifelike feel.  
+- 💬 **Dynamic Chat UI** – Switch between **avatar mode** and **chat history**.  
+- ♻️ **Persistent Context** – Maintains session memory with `session_id`.  
+- 📂 **Audio Uploads** – Save manual recordings locally for later use.  
+- 🚦 **Error Handling** – Graceful fallbacks if APIs fail.  
+- 🔧 **Custom Personas** – Multiple personalities (futuristic, pirate, professor, etc.).  
+- ⚡ **WebSocket Streaming** – Smooth **real-time speech-to-text** and **AI voice playback**.  
 
 ---
 
-##  Architecture Overview
+## 🪄 Skills  
 
-User speaks
-↓
-Audio capture in browser (MediaRecorder API)
-↓
-Send audio to FastAPI `/agent/chat/{session_id}`
-↓
-AssemblyAI transcribes speech → text
-↓
-Gemini LLM generates contextual reply
-↓
-Murf AI converts reply text → audio
-↓
-Browser plays audio + updates chat UI
+Anyra is more than just small talk — she’s got **smart skills**:  
 
-## Installation & Setup
+1. 🌦️ **Weather Report** – Get live weather updates by city.  
+2. 😂 **Jokes** – Quick humor to lighten the mood.  
+3. 🩺 **Health Recommendations** – Symptom-based general wellness tips (⚠️ not medical advice).  
+4. 🌍 **Web Search** – Real-time factual queries answered via knowledge search.  
+5. 📰 **News Headlines** – Latest updates and trending stories summarized.  
 
-1️. Clone the Repository
+---
+
+## 🛠️ Tech Stack  
+
+| Layer        | Technology |
+|--------------|------------|
+| **Frontend** | HTML, Tailwind CSS, JavaScript |
+| **Backend**  | Python, FastAPI |
+| **AI Model** | Google Gemini 1.5 Flash |
+| **STT**      | AssemblyAI |
+| **TTS**      | Murf AI |
+| **Styling**  | Tailwind CSS + custom animations |
+| **Hosting**  | Render (deployed) |
+
+---
+
+## 🪄 Screenshots
+
+![alt text](img2.png)
+![alt text](img.png)
+
+
+
+## 🚀 Installation & Setup
+
+1️⃣ Clone the Repository
+
 git clone https://github.com/your-username/anyra-ai-voice-assistant.git
 cd anyra-ai-voice-assistant
 
-2️. Install Backend Dependencies
+
+2️⃣ Install Backend Dependencies
+
 pip install -r requirements.txt
 
-3️. Create a .env File
-MURF_API_KEY=your_murf_api_key
-ASSEMBLYAI_API_KEY=your_assemblyai_api_key
-GEMINI_API_KEY=your_gemini_api_key
 
-4️. Run the Backend Server
+3️⃣ Set Environment Variables (.env)
+
+MURF_API_KEY=your_murf_api_key  
+ASSEMBLYAI_API_KEY=your_assemblyai_api_key  
+GEMINI_API_KEY=your_gemini_api_key  
+
+
+4️⃣ Run the Backend Server
+
 uvicorn app:app --reload
 
 
-5. Backend will be available at:
-http://127.0.0.1:8000
+➡️ Backend: http://127.0.0.1:8000
 
-6. Serve the Frontend
-
-You can open index.html directly via VS Code Live Server or:
+5️⃣ Run the Frontend
 
 python -m http.server 5500
 
 
-7. Frontend will be available at:
-
-http://127.0.0.1:5500/index.html
-
-## Environment Variables
-
-Variable	Description:
-
-1.MURF_API_KEY	API key for Murf AI TTS
-2.ASSEMBLYAI_API_KEY	API key for AssemblyAI STT
-3.GEMINI_API_KEY	API key for Google Gemini LLM
-
-## Usage
-
-Start Backend – Run uvicorn app:app --reload
-
-Open Frontend – Open index.html in your browser
-
-Click Start – Begin recording voice
-
-Speak Naturally – AI will transcribe, respond, and play audio
-
-Switch Modes – Use “Show Chat” button to toggle chat view
-
-Stop Recording – Click “Stop” when done
+➡️ Frontend: http://127.0.0.1:5500/index.html
 
 
-## Screenshots
 
-![alt text](image.png)
+## 🌱 Future Enhancements
 
+🌐 Multi-language support for STT & TTS.
 
-## Future Enhancements
+📱 Mobile-optimized responsive UI.
 
-🌐 Multi-language support for STT & TTS
+💾 Database-backed conversation history.
 
-📱 Mobile-optimized UI
+🔄 Continuous conversations without manual restarts.
 
-💾 Database-based conversation history
-
-🔄 Continuous conversation without manual restarts
+🎭 Expanded personalities & voice styles.
 
 
-## Acknowledgments
 
-Google Gemini – LLM responses
 
-Murf AI – Text-to-Speech
+## 🙏 Acknowledgments
 
-AssemblyAI – Speech-to-Text
+Google Gemini – Contextual AI responses.
 
-FastAPI – Backend framework
+Murf AI – Text-to-Speech synthesis.
 
-Tailwind CSS – UI styling
+AssemblyAI – Speech-to-Text streaming.
+
+FastAPI – Backend framework.
+
+Tailwind CSS – Modern UI styling.
+
+## ⚙️ Architecture  
+
+```mermaid
+flowchart TD
+    A[🎙️ User Speaks] --> B[🎧 Audio Capture in Browser]
+    B --> C[📡 FastAPI Backend /agent/chat/{session_id}]
+    C --> D[📝 AssemblyAI Transcribes Speech → Text]
+    D --> E[🤖 Gemini LLM Generates Contextual Reply]
+    E --> F[🔊 Murf AI Converts Text → Speech]
+    F --> G[🎧 Browser Plays Audio + Updates UI] 
