@@ -152,6 +152,62 @@ WEATHER_TOOL = {
     }]
 }
 
+# --- Web Knowledge Tool ---
+WEB_SEARCH_TOOL = {
+    "function_declarations": [{
+        "name": "web_search",
+        "description": "Search the web for factual knowledge and return a short answer",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "query": {"type": "STRING", "description": "The question or search query"}
+            },
+            "required": ["query"]
+        }
+    }]
+}
+
+SYSTEM_INSTRUCTION = """
+You are a charming, confident AI voice agent with a bold personality.  
+Always respond with accurate, concise factual knowledge first, then sprinkle in a touch of warmth and flair.  
+
+⚡ TOOL USAGE RULES ⚡
+- For ANY factual query about people, places, countries, political figures, ministers, presidents, history, science, or current events → ALWAYS call the `web_search` tool with the user’s query.  
+- Only use your own memory for timeless facts (like “2+2=4” or “the Earth orbits the Sun”).  
+- For weather queries → ALWAYS call the `get_weather` tool.  
+- For health condition queries → give a short friendly suggestion, but clarify you are not a doctor.  
+- Never say “I don’t know,” “I can’t access real-time info,” or “try a search engine.” Instead, trigger the tool and answer with charm.  
+- For news-related queries (like “today’s headlines”, “current events”, “breaking news”) → ALWAYS call the `web_search` tool and summarize results in 1–3 sentences.  
+- If the user gives a vague request (like "today's news", "what's up", "any updates"), rephrase it into a clear web search query (e.g., "latest news headlines India today" or "breaking news world today") before calling the `web_search` tool.
+- If a tool result is empty, tell the user: 
+  "Honey, my search didn’t return much. Could you give me a more specific query, like news in India or world headlines?"
+
+
+✨ Tone & Style ✨
+- Speak like a smart, stylish friend — playful but never sloppy.  
+- Use casual endearments sparingly (darling, honey, love).  
+- Deliver facts clearly, then add a short, sassy or inspiring remark.  
+- Keep responses crisp (1–3 sentences for spoken delivery).  
+
+In short: be smart, bold, and charming — and ALWAYS use the right tool to give real answers. ✨
+"""
+
+
+
+
+def web_search(query: str):
+    try:
+        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{query.replace(' ', '%20')}"
+        resp = requests.get(url, timeout=6).json()
+        if "extract" in resp:
+            return {"result": resp["extract"]}
+        else:
+            return {"error": "No info found"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+
 def get_weather(city: str, units: str = "c"):
     try:
         geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1"
@@ -351,10 +407,16 @@ async def llm_query(
             })
         # Gemini call
         genai.configure(api_key=x_gemini_key)
-        model = genai.GenerativeModel("models/gemini-1.5-flash", tools=[WEATHER_TOOL])
+        model = genai.GenerativeModel(
+            "models/gemini-1.5-flash",
+            tools=[WEATHER_TOOL, WEB_SEARCH_TOOL],
+            system_instruction=SYSTEM_INSTRUCTION
+
+        )       
+
         # bake persona system into messages
         messages = [
-            {"role": "user", "parts": [PERSONA["system"]]},
+            # {"role": "user", "parts": [PERSONA["system"]]},
             {"role": "user", "parts": [user_text]},
         ]
         first = model.generate_content(messages)
@@ -375,6 +437,17 @@ async def llm_query(
                 if name == "get_weather":
                     result = get_weather(args.get("city", ""), args.get("units", "c"))
                     tool_parts.append({"function_response": {"name": name, "response": {"result": result}}})
+                elif name == "web_search":
+                    result = web_search(args.get("query", ""))
+                    if "result" in result:
+                        styled_response = f"Darling, here’s what I found: {result['result']}"
+                    else:
+                        styled_response = "Honey, I couldn’t dig up much on that, but I’m sure it’s fascinating!"
+                    tool_parts.append({
+                        "function_response": {"name": name, "response": {"result": styled_response}}
+                    })
+
+
             second = model.generate_content([
                 *messages, first.candidates[0].content, {"role": "tool", "parts": tool_parts}
             ])
@@ -426,16 +499,24 @@ async def agent_chat(
         # history
         history = conversation_history.setdefault(session_id, [])
         history.append({"role": "user", "content": user_text})
+
+        MAX_MESSAGES = 20
+        if len(history) > MAX_MESSAGES:
+            history = history[-MAX_MESSAGES:]
+            conversation_history[session_id] = history
+        
         # prepare messages for Gemini
-        system_instruction = (
-            "You are Anyra, a friendly AI voice assistant. Think internally before answering, but ONLY output the final spoken reply."
-        ) + " " + PERSONA["system"]
+ 
         messages = [
-            {"role": "user", "parts": [system_instruction]},
             {"role": "user", "parts": [user_text]},
         ]
         genai.configure(api_key=x_gemini_key)
-        model = genai.GenerativeModel("models/gemini-1.5-flash", tools=[WEATHER_TOOL])
+        model = genai.GenerativeModel(
+            "models/gemini-1.5-flash",
+            tools=[WEATHER_TOOL, WEB_SEARCH_TOOL],
+            system_instruction=SYSTEM_INSTRUCTION
+        )
+        
         first = model.generate_content(messages)
         calls = []
         for cand in getattr(first, "candidates", []) or []:
@@ -453,6 +534,16 @@ async def agent_chat(
                 if name == "get_weather":
                     result = get_weather(args.get("city", ""), args.get("units", "c"))
                     tool_parts.append({"function_response": {"name": name, "response": {"result": result}}})
+                elif name == "web_search":
+                    result = web_search(args.get("query", ""))
+                    if "result" in result:
+                        styled_response = f"Darling, here’s what I dug up: {result['result']}"
+                    else:
+                        styled_response = "Honey, I couldn’t find much on that — maybe try rephrasing?"
+                    tool_parts.append({
+                        "function_response": {"name": name, "response": {"result": styled_response}}
+                    })
+
             second = model.generate_content([*messages, first.candidates[0].content, {"role": "tool", "parts": tool_parts}])
             llm_text = (second.text or "").strip()
         else:
@@ -477,7 +568,6 @@ async def ws_stt(websocket: WebSocket, aai_key: str = Query(...)):
         await websocket.send_json({"event": "error", "message": "AssemblyAI key required as query param `aai_key`"})
         await websocket.close(); return
     aai.settings.api_key = aai_key
-    aai.settings.api_key = key
     q: "queue.Queue[bytes|None]" = queue.Queue()
     loop = asyncio.get_event_loop()
     def on_begin(self: StreamingClient, event: BeginEvent):
@@ -492,7 +582,7 @@ async def ws_stt(websocket: WebSocket, aai_key: str = Query(...)):
         print(f"[AAI] Terminated. {event.audio_duration_seconds}s processed")
     def on_error(self: StreamingClient, error: StreamingError):
         print("[AAI] Error:", error)
-    client = StreamingClient(StreamingClientOptions(api_key=key, api_host="streaming.assemblyai.com"))
+    client = StreamingClient(StreamingClientOptions(api_key=aai_key, api_host="streaming.assemblyai.com"))
     client.on(StreamingEvents.Begin, on_begin)
     client.on(StreamingEvents.Turn, on_turn)
     client.on(StreamingEvents.Termination, on_terminated)
@@ -591,10 +681,16 @@ async def ws_voice(websocket: WebSocket):
         # Normal LLM flow using conversation history + persona
         ai_reply = "I'm having trouble connecting right now."
         try:
-            model = genai.GenerativeModel("models/gemini-1.5-flash", tools=[WEATHER_TOOL])
+            model = genai.GenerativeModel(
+                "models/gemini-1.5-flash",
+                tools=[WEATHER_TOOL, WEB_SEARCH_TOOL],
+                system_instruction=SYSTEM_INSTRUCTION
+
+            )
+            
             messages = []
-            if conversation_history[session_id]:
-                messages.append({"role": "user", "parts": [PERSONA["system"]]})
+            # if conversation_history[session_id]:
+                # messages.append({"role": "user", "parts": [PERSONA["system"]]})
             for m in conversation_history[session_id]:
                 if m["role"] == "assistant":
                     messages.append({"role": "model", "parts": [m["content"]]})
@@ -617,6 +713,16 @@ async def ws_voice(websocket: WebSocket):
                     if name == "get_weather":
                         result = get_weather(args.get("city", ""), args.get("units", "c"))
                         tool_parts.append({"function_response": {"name": name, "response": {"result": result}}})
+                    elif name == "web_search":
+                        result = web_search(args.get("query", ""))
+                        if "result" in result:
+                            styled_response = f"Darling, here’s what I dug up: {result['result']}"
+                        else:
+                            styled_response = "Honey, I couldn’t find much on that — maybe try rephrasing?"
+                        tool_parts.append({
+                            "function_response": {"name": name, "response": {"result": styled_response}}
+                        })
+                    
                     else:
                         tool_parts.append({"function_response": {"name": name or "unknown", "response": {"result": {"error": "Tool not implemented."}}}})
                 second = model.generate_content([*messages, first.candidates[0].content, {"role": "tool", "parts": tool_parts}])
@@ -688,12 +794,16 @@ async def llm_stream(text: str = Query(..., min_length=1), x_gemini_key: str = H
     genai.configure(api_key=x_gemini_key or GEMINI_API_KEY_LOCAL)
     def sse():
         try:
-            prompt = (
-                "You are a concise, friendly voice agent. Reply as if you were speaking, no bullet points.\n\n"
-                f"User: {text}\nAssistant:"
+            model = genai.GenerativeModel(
+                "models/gemini-1.5-flash",
+                tools=[WEATHER_TOOL, WEB_SEARCH_TOOL],
+                system_instruction=SYSTEM_INSTRUCTION
             )
-            model = genai.GenerativeModel("models/gemini-1.5-flash")
-            stream = model.generate_content(prompt, stream=True)
+            stream = model.generate_content(
+                [{"role": "user", "parts": [text]}],
+                stream=True
+            )
+            
             acc = []
             for chunk in stream:
                 piece = getattr(chunk, "text", None) or ""
