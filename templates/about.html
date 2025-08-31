@@ -79,16 +79,101 @@
   </section>
 
   <!-- Skills Section -->
-  <section class="max-w-4xl mx-auto px-6 mt-20 fade-up">
-    <h2 class="text-4xl font-bold text-cyan-300 text-center mb-8">🪄 Skills</h2>
-    <ul class="space-y-3 text-gray-300 list-disc list-inside">
-      <li>🌦️ Weather Report – Get live updates by city.</li>
-      <li>😂 Jokes – Quick humor to lighten your mood.</li>
-      <li>🩺 Health Recommendations – Symptom-based general tips ⚠️ (not medical advice).</li>
-      <li>🌍 Web Search – Real-time factual queries answered.</li>
-      <li>📰 News Headlines – Latest news summaries at a glance.</li>
-    </ul>
-  </section>
+<!-- Skills Section -->
+<section class="mt-20 max-w-6xl w-full px-6 mx-auto ">
+<h2 class="text-4xl lg:text-5xl font-bold text-cyan-300 text-center mb-10 
+           drop-shadow-lg ">
+  🪄 Anyra’s Skills
+</h2>
+
+
+  <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto">
+
+    <!-- Weather -->
+    <div class="p-6 bg-gray-900/70 rounded-3xl shadow-lg border border-cyan-500/20 
+                hover:border-cyan-400/60 hover:scale-105 transition-transform duration-300 
+                hover:shadow-cyan-500/50 cursor-pointer group">
+      <div class="flex items-center mb-4">
+        <span class="text-3xl mr-3 animate-bounce">🌦️</span>
+        <h3 class="text-xl font-semibold text-cyan-300">Weather Updates</h3>
+      </div>
+      <p class="text-gray-300 mb-2 group-hover:text-white transition-colors duration-300">
+        Get live weather updates for any city instantly.
+      </p>
+      <p class="text-gray-400 italic text-sm">
+        Example: "Anyra, what’s the weather in Tokyo?"
+      </p>
+    </div>
+
+    <!-- Jokes -->
+    <div class="p-6 bg-gray-900/70 rounded-3xl shadow-lg border border-cyan-500/20 
+                hover:border-cyan-400/60 hover:scale-105 transition-transform duration-300 
+                hover:shadow-cyan-500/50 cursor-pointer group">
+      <div class="flex items-center mb-4">
+        <span class="text-3xl mr-3 animate-pulse">😂</span>
+        <h3 class="text-xl font-semibold text-cyan-300">Jokes & Humor</h3>
+      </div>
+      <p class="text-gray-300 mb-2 group-hover:text-white transition-colors duration-300">
+        Lighten the mood with funny one-liners.
+      </p>
+      <p class="text-gray-400 italic text-sm">
+        Example: "Anyra, tell me a joke."
+      </p>
+    </div>
+
+    <!-- Health -->
+    <div class="p-6 bg-gray-900/70 rounded-3xl shadow-lg border border-cyan-500/20 
+                hover:border-cyan-400/60 hover:scale-105 transition-transform duration-300 
+                hover:shadow-cyan-500/50 cursor-pointer group">
+      <div class="flex items-center mb-4">
+        <span class="text-3xl mr-3 animate-ping">🩺</span>
+        <h3 class="text-xl font-semibold text-cyan-300">Health Tips</h3>
+      </div>
+      <p class="text-gray-300 mb-2 group-hover:text-white transition-colors duration-300">
+        Symptom-based wellness suggestions (⚠️ not medical advice).
+      </p>
+      <p class="text-gray-400 italic text-sm">
+        Example: "Anyra, I feel dizzy, any tips?"
+      </p>
+    </div>
+
+    <!-- Web Search -->
+    <div class="p-6 bg-gray-900/70 rounded-3xl shadow-lg border border-cyan-500/20 
+                hover:border-cyan-400/60 hover:scale-105 transition-transform duration-300 
+                hover:shadow-cyan-500/50 cursor-pointer group">
+      <div class="flex items-center mb-4">
+        <span class="text-3xl mr-3 animate-bounce">🌍</span>
+        <h3 class="text-xl font-semibold text-cyan-300">Web Search</h3>
+      </div>
+      <p class="text-gray-300 mb-2 group-hover:text-white transition-colors duration-300">
+        Real-time factual queries answered quickly.
+      </p>
+      <p class="text-gray-400 italic text-sm">
+        Example: "Anyra, who won the latest Oscar?"
+      </p>
+    </div>
+
+    <!-- News -->
+    <div class="p-6 bg-gray-900/70 rounded-3xl shadow-lg border border-cyan-500/20 
+                hover:border-cyan-400/60 hover:scale-105 transition-transform duration-300 
+                hover:shadow-cyan-500/50 cursor-pointer group">
+      <div class="flex items-center mb-4">
+        <span class="text-3xl mr-3 animate-pulse">📰</span>
+        <h3 class="text-xl font-semibold text-cyan-300">News Headlines</h3>
+      </div>
+      <p class="text-gray-300 mb-2 group-hover:text-white transition-colors duration-300">
+        Stay updated with trending stories summarized.
+      </p>
+      <p class="text-gray-400 italic text-sm">
+        Example: "Anyra, latest tech news?"
+      </p>
+    </div>
+  </div>
+
+  <p class="text-gray-400 italic mt-6 text-center">
+    💡 Tip: Hover over each card for neon glow & bounce animations! ✨
+  </p>
+</section>
 
   <!-- How to Use Section -->
 <section class="max-w-4xl mx-auto px-6 mt-20 fade-up">
@@ -126,49 +211,7 @@
 </section>
 
 
-  <!-- Tech Stack -->
-  <section class="max-w-4xl mx-auto px-6 mt-20 fade-up">
-    <h2 class="text-4xl font-bold text-cyan-300 text-center mb-8">🛠️ Tech Stack</h2>
-    <div class="overflow-x-auto">
-      <table class="w-full text-gray-300 border border-cyan-500/20 rounded-xl">
-        <tbody>
-          <tr class="border-b border-cyan-500/20">
-            <td class="p-3 font-semibold">Frontend</td>
-            <td class="p-3">HTML, Tailwind CSS, JavaScript</td>
-          </tr>
-          <tr class="border-b border-cyan-500/20">
-            <td class="p-3 font-semibold">Backend</td>
-            <td class="p-3">Python, FastAPI</td>
-          </tr>
-          <tr class="border-b border-cyan-500/20">
-            <td class="p-3 font-semibold">AI Model</td>
-            <td class="p-3">Google Gemini 1.5 Flash</td>
-          </tr>
-          <tr class="border-b border-cyan-500/20">
-            <td class="p-3 font-semibold">STT / TTS</td>
-            <td class="p-3">AssemblyAI / Murf AI</td>
-          </tr>
-          <tr>
-            <td class="p-3 font-semibold">Hosting</td>
-            <td class="p-3">Render</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
 
-
-  <!-- Future Enhancements -->
-  <section class="max-w-4xl mx-auto px-6 mt-20 fade-up">
-    <h2 class="text-4xl font-bold text-cyan-300 text-center mb-8">🌱 Future Enhancements</h2>
-    <ul class="space-y-3 text-gray-300 list-disc list-inside">
-      <li>🌐 Multi-language support for STT & TTS</li>
-      <li>📱 Mobile-optimized responsive UI</li>
-      <li>💾 Database-backed conversation history</li>
-      <li>🔄 Continuous conversations without manual restarts</li>
-      <li>🎭 Expanded personalities & voice styles</li>
-    </ul>
-  </section>
 
   <!-- Creator / Footer -->
   <footer class="text-center py-6 text-gray-400 mt-20">
