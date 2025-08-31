@@ -1,4 +1,15 @@
 # 🎤 Anyra – AI Voice Assistant  
+🔊 Powered by [Murf AI](https://murf.ai/api/docs/introduction/overview)
+
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Google Gemini](https://img.shields.io/badge/Google_Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![AssemblyAI](https://img.shields.io/badge/AssemblyAI-6D6DFF?style=for-the-badge)
+![Murf AI](https://img.shields.io/badge/Murf_TTS-FF6F61?style=for-the-badge)
+![Render](https://img.shields.io/badge/Render-20232A?style=for-the-badge&logo=render&logoColor=white)
 
 **Anyra** is an **AI-powered conversational voice assistant** that combines **real-time speech recognition**, **large language models**, and **text-to-speech synthesis** to create **natural, human-like voice conversations**.  
 
@@ -51,8 +62,13 @@ Anyra is more than just small talk — she’s got **smart skills**:
 
 ## 🪄 Screenshots
 
-![alt text](img2.png)
-![alt text](img.png)
+![Anyra Chat UI](img2.png)
+![Anyra Avatar](img.png)
+
+
+
+🎥 **Demo Video:** [Watch Anyra in action](https://www.linkedin.com/posts/singhananya22_30daysofaivoiceagentschallenge-aivoiceagents-activity-7367981165242109953-llKM?utm_source=share&utm_medium=member_desktop&rcm=ACoAAEY_JsoBu6JyCXNxaSO0__JKI-cn7MFq7bQ)
+
 
 
 
