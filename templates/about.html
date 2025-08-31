@@ -2,58 +2,33 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>About - Anyra</title>
-  <link rel="stylesheet" href="/static/output.css">
-  <link rel="icon" href="data:,">
+  <title>About Anyra</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" href="data:,">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Prata&display=swap');
-    
-    body { font-family: "Outfit", sans-serif; }
+
+    body { font-family: 'Outfit', sans-serif; }
     ::-webkit-scrollbar { display: none; }
 
-    /* Page transition */
-    .page-transition {
-      opacity: 0;
-      transform: translateY(10px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
+    .fade-up { 
+      opacity: 0; transform: translateY(20px); transition: all 0.6s ease-out; 
     }
-    .page-transition.active {
-      opacity: 1;
-      transform: translateY(0);
+    .fade-up.active { opacity: 1; transform: translateY(0); }
+
+    .hover-neon:hover { 
+      box-shadow: 0 0 8px #22d3ee, 0 0 16px #22d3ee; 
+      border-color: #22d3ee;
     }
 
-    /* Back button styled like nav link */
-    .back-link {
-      position: absolute;
-      top: 1rem;
-      right: 1.5rem;
-      color: #67e8f9; /* cyan-300 */
-      font-weight: 600;
-      transition: all 0.3s ease-in-out;
+    .back-link { 
+      position: absolute; top: 1rem; right: 1.5rem; 
+      color: #67e8f9; font-weight: 600; transition: all 0.3s; 
     }
-    .back-link:hover {
-      color: #22d3ee;
-      text-shadow: 0 0 8px #22d3ee, 0 0 16px #22d3ee;
-    }
-    .back-link::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      bottom: -4px;
-      width: 0;
-      height: 2px;
-      background-color: #22d3ee;
-      box-shadow: 0 0 8px #22d3ee, 0 0 16px #22d3ee;
-      transition: width 0.3s ease-in-out;
-    }
-    .back-link:hover::after {
-      width: 100%;
-    }
+    .back-link:hover { color: #22d3ee; text-shadow: 0 0 8px #22d3ee, 0 0 16px #22d3ee; }
   </style>
 </head>
-
-<body class="bg-black text-white flex flex-col min-h-screen">
+<body class="bg-black text-white flex flex-col min-h-screen relative">
 
   
   <button onclick="window.history.back()" 
@@ -61,55 +36,195 @@
          rounded-xl text-white font-semibold shadow-lg block">
   Back to Home
 </button>
-
-
-    <!-- Back to Home Button (top-right corner) -->
-
-    
-
-  <!-- Page Content -->
-  <div id="pageContent" class="page-transition flex flex-col items-center justify-center flex-1 px-6 lg:px-20 ">
-    <h1 class="text-4xl lg:text-5xl font-extrabold mb-6 text-cyan-300 text-center">About Anyra</h1>
-
-    <p class="text-lg text-gray-300 max-w-2xl text-center mb-8">
-      <strong>Anyra</strong> is an AI-powered voice assistant designed to provide 
-      natural, engaging, and interactive conversations. She’s built with 
-      real-time speech recognition, generative intelligence, and lifelike 
-      voice synthesis to feel less like a tool and more like a companion.
+  <!-- Hero Section -->
+  <section class="text-center px-6 lg:px-32 py-16 fade-up">
+    <h1 class="text-5xl font-extrabold text-cyan-300 mb-4">About Anyra</h1>
+    <p class="text-gray-300 text-lg mb-6">
+      Anyra is your AI-powered voice companion — engaging, smart, and interactive. 
+      She listens, understands, and responds with personality, powered by cutting-edge AI.
     </p>
+    <img src="/static/avatar.gif" alt="Anyra Avatar" class="mx-auto shadow-lg w-64 h-64">
 
-    <!-- Features Section -->
-    <div class="grid gap-6 md:grid-cols-2 max-w-4xl w-full">
-      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover:border-cyan-400/40 transition">
-        <h2 class="text-xl font-semibold text-cyan-300 mb-3">🎙️ Voice Interaction</h2>
-        <p class="text-gray-300">Talk to Anyra in real-time, with instant transcription and lifelike responses.</p>
+  </section>
+
+  <!-- Features Section -->
+  <section class="max-w-6xl mx-auto px-6 mt-12 fade-up">
+    <h2 class="text-4xl font-bold text-cyan-300 text-center mb-10">✨ Core Features</h2>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover-neon transition">
+        <h3 class="text-xl font-semibold mb-2">🎙️ Live Voice Capture</h3>
+        <p class="text-gray-300">Manual & automatic recording modes for seamless interaction.</p>
       </div>
-      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover:border-cyan-400/40 transition">
-        <h2 class="text-xl font-semibold text-cyan-300 mb-3">⚡ Smart Responses</h2>
-        <p class="text-gray-300">Powered by advanced AI, she understands context and adapts her personality to conversations.</p>
+      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover-neon transition">
+        <h3 class="text-xl font-semibold mb-2">🧠 Smart AI Responses</h3>
+        <p class="text-gray-300">Context-aware replies powered by Google Gemini 1.5 Flash.</p>
       </div>
-      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover:border-cyan-400/40 transition">
-        <h2 class="text-xl font-semibold text-cyan-300 mb-3">🎨 Personality</h2>
-        <p class="text-gray-300">Friendly, expressive, and interactive — Anyra isn’t just smart, she’s engaging.</p>
+      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover-neon transition">
+        <h3 class="text-xl font-semibold mb-2">🗣️ Natural Voice Output</h3>
+        <p class="text-gray-300">Murf AI TTS plus browser fallback for lifelike speech.</p>
       </div>
-      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover:border-cyan-400/40 transition">
-        <h2 class="text-xl font-semibold text-cyan-300 mb-3">🌐 Multimodal</h2>
-        <p class="text-gray-300">Supports voice, text, and visual content for richer interactions.</p>
+      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover-neon transition">
+        <h3 class="text-xl font-semibold mb-2">👁️ Animated Avatar</h3>
+        <p class="text-gray-300">Eye-tracking visuals and glowing orb animation bring her to life.</p>
+      </div>
+      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover-neon transition">
+        <h3 class="text-xl font-semibold mb-2">♻️ Persistent Context</h3>
+        <p class="text-gray-300">Remembers conversations with session-based memory.</p>
+      </div>
+      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover-neon transition">
+        <h3 class="text-xl font-semibold mb-2">🎭 Custom Personas</h3>
+        <p class="text-gray-300">Switch between personalities like pirate, professor, or futuristic AI.</p>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- Footer -->
-  <footer class="text-center py-6 text-gray-400 mt-auto">
-    Built by <span class="text-cyan-300 hover:text-cyan-200">Ananya Singh</span>
+  <!-- Skills Section -->
+  <section class="max-w-4xl mx-auto px-6 mt-20 fade-up">
+    <h2 class="text-4xl font-bold text-cyan-300 text-center mb-8">🪄 Skills</h2>
+    <ul class="space-y-3 text-gray-300 list-disc list-inside">
+      <li>🌦️ Weather Report – Get live updates by city.</li>
+      <li>😂 Jokes – Quick humor to lighten your mood.</li>
+      <li>🩺 Health Recommendations – Symptom-based general tips ⚠️ (not medical advice).</li>
+      <li>🌍 Web Search – Real-time factual queries answered.</li>
+      <li>📰 News Headlines – Latest news summaries at a glance.</li>
+    </ul>
+  </section>
+
+  <!-- How to Use Section -->
+<section class="max-w-4xl mx-auto px-6 mt-20 fade-up">
+  <h2 class="text-4xl font-bold text-cyan-300 text-center mb-8">🚀 How to Use Anyra</h2>
+  <div class="grid md:grid-cols-2 gap-6">
+    <div class="p-6 bg-gray-900/70 rounded-2xl border border-cyan-500/20 hover-neon transition">
+      <h3 class="font-semibold mb-2">1️⃣ Open the Web App</h3>
+      <p class="text-gray-300">Navigate to Anyra in your browser to get started.</p>
+    </div>
+    <div class="p-6 bg-gray-900/70 rounded-2xl border border-cyan-500/20 hover-neon transition">
+      <h3 class="font-semibold mb-2">2️⃣ Click Start</h3>
+      <p class="text-gray-300">Press the Start button to initialize the assistant.</p>
+    </div>
+    <div class="p-6 bg-gray-900/70 rounded-2xl border border-cyan-500/20 hover-neon transition">
+      <h3 class="font-semibold mb-2">3️⃣ Enter Required API Keys</h3>
+      <p class="text-gray-300">
+        - <strong>Murf API Key</strong>: Enables natural voice output.<br>
+        - <strong>AssemblyAI API Key</strong>: Enables real-time speech-to-text.<br>
+        - <strong>Google Gemini API Key</strong>: Powers context-aware AI responses.
+      </p>
+    </div>
+    <div class="p-6 bg-gray-900/70 rounded-2xl border border-cyan-500/20 hover-neon transition">
+      <h3 class="font-semibold mb-2">4️⃣ Save API Keys</h3>
+      <p class="text-gray-300">Click <strong>Save</strong> to store your keys so Anyra can use them during your session.</p>
+    </div>
+    <div class="p-6 bg-gray-900/70 rounded-2xl border border-cyan-500/20 hover-neon transition">
+      <h3 class="font-semibold mb-2">5️⃣ Start Interacting</h3>
+      <p class="text-gray-300">Press Start (if not already active) and begin talking or typing to Anyra. Switch personas or try her skills like weather, news, or jokes.</p>
+    </div>
+    <div class="p-6 bg-gray-900/70 rounded-2xl border border-cyan-500/20 hover-neon transition">
+      <h3 class="font-semibold mb-2">6️⃣ Optional Features</h3>
+      <p class="text-gray-300">Upload audio recordings or switch between avatar and chat UI for a richer experience.</p>
+    </div>
+  </div>
+</section>
+
+
+  <!-- Tech Stack -->
+  <section class="max-w-4xl mx-auto px-6 mt-20 fade-up">
+    <h2 class="text-4xl font-bold text-cyan-300 text-center mb-8">🛠️ Tech Stack</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-gray-300 border border-cyan-500/20 rounded-xl">
+        <tbody>
+          <tr class="border-b border-cyan-500/20">
+            <td class="p-3 font-semibold">Frontend</td>
+            <td class="p-3">HTML, Tailwind CSS, JavaScript</td>
+          </tr>
+          <tr class="border-b border-cyan-500/20">
+            <td class="p-3 font-semibold">Backend</td>
+            <td class="p-3">Python, FastAPI</td>
+          </tr>
+          <tr class="border-b border-cyan-500/20">
+            <td class="p-3 font-semibold">AI Model</td>
+            <td class="p-3">Google Gemini 1.5 Flash</td>
+          </tr>
+          <tr class="border-b border-cyan-500/20">
+            <td class="p-3 font-semibold">STT / TTS</td>
+            <td class="p-3">AssemblyAI / Murf AI</td>
+          </tr>
+          <tr>
+            <td class="p-3 font-semibold">Hosting</td>
+            <td class="p-3">Render</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <!-- Future Enhancements -->
+  <section class="max-w-4xl mx-auto px-6 mt-20 fade-up">
+    <h2 class="text-4xl font-bold text-cyan-300 text-center mb-8">🌱 Future Enhancements</h2>
+    <ul class="space-y-3 text-gray-300 list-disc list-inside">
+      <li>🌐 Multi-language support for STT & TTS</li>
+      <li>📱 Mobile-optimized responsive UI</li>
+      <li>💾 Database-backed conversation history</li>
+      <li>🔄 Continuous conversations without manual restarts</li>
+      <li>🎭 Expanded personalities & voice styles</li>
+    </ul>
+  </section>
+
+  <!-- Creator / Footer -->
+  <footer class="text-center py-6 text-gray-400 mt-20">
+    Built by <span class="text-cyan-300 hover:text-cyan-200">Ananya Singh</span> | Powered by <span class="text-cyan-300">Google Gemini, Murf AI, AssemblyAI</span>
   </footer>
 
-  <!-- Smooth transition script -->
+  <!-- Animation Script -->
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-      const page = document.getElementById("pageContent");
-      requestAnimationFrame(() => page.classList.add("active"));
+      document.querySelectorAll(".fade-up").forEach((el, i) => {
+        setTimeout(() => el.classList.add("active"), i * 150);
+      });
     });
   </script>
+  <canvas id="particle-bg" class="fixed top-0 left-0 w-full h-full z-[-1]"></canvas>
+<script>
+const canvas = document.getElementById('particle-bg');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const particles = [];
+const particleCount = 80;
+
+for(let i=0;i<particleCount;i++){
+  particles.push({
+    x: Math.random()*canvas.width,
+    y: Math.random()*canvas.height,
+    r: Math.random()*2+1,
+    dx: (Math.random()-0.5)*1,
+    dy: (Math.random()-0.5)*1
+  });
+}
+
+function animate(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  particles.forEach(p=>{
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(34,211,238,0.6)';
+    ctx.fill();
+    p.x += p.dx;
+    p.y += p.dy;
+    
+    if(p.x<0||p.x>canvas.width) p.dx*=-1;
+    if(p.y<0||p.y>canvas.height) p.dy*=-1;
+  });
+  requestAnimationFrame(animate);
+}
+animate();
+
+window.addEventListener('resize', ()=>{
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+</script>
+
 </body>
 </html>
