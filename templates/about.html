@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>About - Anyra</title>
+  <link rel="stylesheet" href="/static/output.css">
+  <link rel="icon" href="data:,">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Prata&display=swap');
+    
+    body { font-family: "Outfit", sans-serif; }
+    ::-webkit-scrollbar { display: none; }
+
+    /* Page transition */
+    .page-transition {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .page-transition.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Back button styled like nav link */
+    .back-link {
+      position: absolute;
+      top: 1rem;
+      right: 1.5rem;
+      color: #67e8f9; /* cyan-300 */
+      font-weight: 600;
+      transition: all 0.3s ease-in-out;
+    }
+    .back-link:hover {
+      color: #22d3ee;
+      text-shadow: 0 0 8px #22d3ee, 0 0 16px #22d3ee;
+    }
+    .back-link::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: -4px;
+      width: 0;
+      height: 2px;
+      background-color: #22d3ee;
+      box-shadow: 0 0 8px #22d3ee, 0 0 16px #22d3ee;
+      transition: width 0.3s ease-in-out;
+    }
+    .back-link:hover::after {
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body class="bg-black text-white flex flex-col min-h-screen">
+
+  
+  <button onclick="window.history.back()" 
+  class="mt-8 ml-auto px-6 py-3 bg-gray-800 hover:bg-gray-700 
+         rounded-xl text-white font-semibold shadow-lg block">
+  Back to Home
+</button>
+
+
+    <!-- Back to Home Button (top-right corner) -->
+
+    
+
+  <!-- Page Content -->
+  <div id="pageContent" class="page-transition flex flex-col items-center justify-center flex-1 px-6 lg:px-20 ">
+    <h1 class="text-4xl lg:text-5xl font-extrabold mb-6 text-cyan-300 text-center">About Anyra</h1>
+
+    <p class="text-lg text-gray-300 max-w-2xl text-center mb-8">
+      <strong>Anyra</strong> is an AI-powered voice assistant designed to provide 
+      natural, engaging, and interactive conversations. She’s built with 
+      real-time speech recognition, generative intelligence, and lifelike 
+      voice synthesis to feel less like a tool and more like a companion.
+    </p>
+
+    <!-- Features Section -->
+    <div class="grid gap-6 md:grid-cols-2 max-w-4xl w-full">
+      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover:border-cyan-400/40 transition">
+        <h2 class="text-xl font-semibold text-cyan-300 mb-3">🎙️ Voice Interaction</h2>
+        <p class="text-gray-300">Talk to Anyra in real-time, with instant transcription and lifelike responses.</p>
+      </div>
+      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover:border-cyan-400/40 transition">
+        <h2 class="text-xl font-semibold text-cyan-300 mb-3">⚡ Smart Responses</h2>
+        <p class="text-gray-300">Powered by advanced AI, she understands context and adapts her personality to conversations.</p>
+      </div>
+      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover:border-cyan-400/40 transition">
+        <h2 class="text-xl font-semibold text-cyan-300 mb-3">🎨 Personality</h2>
+        <p class="text-gray-300">Friendly, expressive, and interactive — Anyra isn’t just smart, she’s engaging.</p>
+      </div>
+      <div class="p-6 bg-gray-900/70 rounded-2xl shadow-lg border border-cyan-500/20 hover:border-cyan-400/40 transition">
+        <h2 class="text-xl font-semibold text-cyan-300 mb-3">🌐 Multimodal</h2>
+        <p class="text-gray-300">Supports voice, text, and visual content for richer interactions.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="text-center py-6 text-gray-400 mt-auto">
+    Built by <span class="text-cyan-300 hover:text-cyan-200">Ananya Singh</span>
+  </footer>
+
+  <!-- Smooth transition script -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const page = document.getElementById("pageContent");
+      requestAnimationFrame(() => page.classList.add("active"));
+    });
+  </script>
+</body>
+</html>

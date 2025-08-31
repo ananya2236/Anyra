@@ -685,3 +685,40 @@ async function queryLLM(audioFile) {
 
   return res.json();
 }
+
+
+// script.js
+window.addEventListener("DOMContentLoaded", () => {
+  const greeting = document.getElementById("ai-greeting");
+  greeting.classList.add("typewriter");
+});
+
+
+function startSpeaking() {
+  document.getElementById("ai-container").classList.add("speaking");
+}
+
+function stopSpeaking() {
+  document.getElementById("ai-container").classList.remove("speaking");
+}
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const page = document.getElementById("pageContent");
+  // Animate page in
+  requestAnimationFrame(() => page.classList.add("active"));
+
+  // Animate page out before navigation
+  document.querySelectorAll("a").forEach(link => {
+    if (link.hostname === window.location.hostname) {
+      link.addEventListener("click", (e) => {
+        const href = link.getAttribute("href");
+        if (!href.startsWith("#") && href !== "#") {
+          e.preventDefault();
+          page.classList.remove("active");
+          setTimeout(() => window.location.href = href, 500); // match CSS duration
+        }
+      });
+    }
+  });
+});

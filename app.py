@@ -881,3 +881,19 @@ async def day20_llm_to_murf(
         await ws.send(json.dumps({"context_id": CONTEXT_ID, "end": True}))
         await recv_task
     return {"ok": True, "note": "Check server console for base64 audio chunks."}
+
+
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/about", response_class=HTMLResponse)
+async def about(request: Request):
+    return templates.TemplateResponse("about.html", {"request": request})
+
+
+# already serving static?
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
