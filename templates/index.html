@@ -253,6 +253,60 @@
   transform: translateY(0);
 }
 
+/* 🌞 Light Mode Base */
+.light {
+  background-color: #dbfcfd !important; /* AliceBlue (very light blue) */
+  color: black !important;
+}
+
+/* Apply black text globally in light mode */
+.light * {
+  color: black !important;
+}
+
+
+/* Fix bubbles in light mode */
+.light #chatContainer div[data-sender="user"] {
+  background-color: #dbeafe !important; /* light blue */
+  color: black !important;
+}
+.light #chatContainer div[data-sender="ai"] {
+  background-color: #e5e7eb !important; /* light gray */
+  color: black !important;
+}
+
+/* Modal in light mode */
+.light #settingsModal .bg-gray-900 {
+  background-color: #f3f4f6 !important; /* light gray */
+}
+.light #settingsModal input {
+  background-color: white !important;
+  border-color: #d1d5db !important;
+  color: black !important;
+}
+.light #settingsModal button {
+  color: black !important;
+}
+.light nav a {
+  color: #2563eb !important; /* Tailwind blue-600 */
+  text-shadow: none !important;
+}
+
+/* 🌞 Light mode glowing ball */
+.light .swirl-glow {
+  background: radial-gradient(circle at center,
+    rgba(103, 167, 246, 0.9),   /* bright blue core */
+    rgba(164, 101, 241, 0.7),   /* purple glow */
+    rgba(240, 125, 240, 0.5),   /* pink outer */
+    rgba(86, 86, 232, 0.3)    /* fade into background */
+  );
+  background-size: 300% 300%;
+  animation: swirl 12s ease-in-out infinite, pulseGlow 4s ease-in-out infinite;
+  box-shadow: 
+    0 0 40px rgba(3, 69, 112, 0.8),
+    0 0 80px rgba(51, 7, 132, 0.6),
+    0 0 120px rgba(227, 29, 227, 0.5);
+}
 
 
   }
@@ -260,13 +314,16 @@
 </head>
 <div id="pageContent" class="page-transition"></div>
 
-<body class="bg-black text-white flex flex-col min-h-screen">
+<body id="body" class="dark bg-black text-white flex flex-col min-h-screen">
+
 
 <nav class="absolute top-4 right-6 flex gap-6 text-cyan-300 font-semibold">
   <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Home</a>
   <a href="/about" class="nav-link {% if request.url.path == '/about' %}active{% endif %}">About</a>
   <a href="#" id="chatToggleBtn" class="nav-link">Chats</a>
   <a href="#" id="settingsBtn" class="nav-link">Settings</a>
+  <button id="themeToggle" class="nav-link">🌙</button>
+
 </nav>
 
 
@@ -503,6 +560,33 @@ window.addEventListener('resize', ()=>{
 });
 
 document.getElementById("chatToggleBtn").addEventListener("click", toggleChat);
+
+
+// --- Dark/Light Mode Toggle ---
+const bodyEl = document.getElementById("body");
+const themeToggle = document.getElementById("themeToggle");
+
+// Load saved theme
+if (localStorage.getItem("theme") === "light") {
+  bodyEl.classList.remove("dark");
+  bodyEl.classList.add("light");
+  themeToggle.textContent = "☀️";
+}
+
+themeToggle.addEventListener("click", () => {
+  if (bodyEl.classList.contains("dark")) {
+    bodyEl.classList.remove("dark");
+    bodyEl.classList.add("light");
+    themeToggle.textContent = "☀️";
+    localStorage.setItem("theme", "light");
+  } else {
+    bodyEl.classList.remove("light");
+    bodyEl.classList.add("dark");
+    themeToggle.textContent = "🌙";
+    localStorage.setItem("theme", "dark");
+  }
+});
+
 
 </script>
 
